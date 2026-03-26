@@ -1,5 +1,7 @@
 import { supabaseClient } from "./config.js";
 
+const FAVORITES_STORAGE_KEY = "asguide.favoriteResources";
+
 async function fetchCategories() {
   const { data, error } = await supabaseClient
     .from("categories")
@@ -16,7 +18,7 @@ async function fetchCategories() {
 async function fetchResources() {
   const { data, error } = await supabaseClient
     .from("resources")
-    .select("id, title, type, category_id")
+    .select("*")
     .order("title", { ascending: true });
 
   if (error) {
@@ -26,14 +28,63 @@ async function fetchResources() {
   return data ?? [];
 }
 
+function normalizeText(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function getStoredFavoriteIds() {
+  try {
+    const rawValue = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
+    const parsed = rawValue ? JSON.parse(rawValue) : [];
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.map((value) => String(value));
+  } catch (error) {
+    console.error("Impossible de lire les favoris locaux.", error);
+    return [];
+  }
+}
+
+function saveFavoriteIds(ids) {
+  window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(ids));
+  window.dispatchEvent(new CustomEvent("favorites:changed", { detail: { count: ids.length } }));
+}
+
+export function getFavoriteIds() {
+  return getStoredFavoriteIds();
+}
+
+export function getFavoritesCount() {
+  return getStoredFavoriteIds().length;
+}
+
+export function toggleFavoriteResource(resourceId) {
+  const resourceKey = String(resourceId);
+  const currentIds = getStoredFavoriteIds();
+  const exists = currentIds.includes(resourceKey);
+  const nextIds = exists
+    ? currentIds.filter((id) => id !== resourceKey)
+    : [...currentIds, resourceKey];
+
+  saveFavoriteIds(nextIds);
+  return !exists;
+}
+
 function findCategoryByName(categories, targetName) {
   return categories.find(
-    (category) => category.name.trim().toLowerCase() === targetName.trim().toLowerCase()
+    (category) => normalizeText(category.name) === normalizeText(targetName)
   );
 }
 
 function getDirectChildren(categories, parentId) {
-  return categories.filter((category) => category.parent_id === parentId);
+  return categories.filter((category) => String(category.parent_id) === String(parentId));
 }
 
 function getRootCategories(categories, rootCategoryName) {
@@ -55,12 +106,41 @@ function getRootCategories(categories, rootCategoryName) {
   };
 }
 
+function buildCategoryMap(categories) {
+  return new Map(categories.map((category) => [String(category.id), category]));
+}
+
+function buildResourceUrl(resource) {
+  const candidateKeys = ["url", "link", "file_url", "file_link", "href", "document_url"];
+
+  for (const key of candidateKeys) {
+    const value = resource?.[key];
+
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return "";
+}
+
 function getResourceTypeLabel(type) {
   return type ? String(type).toUpperCase() : "DOCUMENT";
 }
 
+function getResourceIcon(type) {
+  const normalizedType = normalizeText(type);
+
+  if (normalizedType.includes("pdf")) return "PDF";
+  if (normalizedType.includes("image") || normalizedType.includes("jpg") || normalizedType.includes("png")) return "IMG";
+  if (normalizedType.includes("word") || normalizedType.includes("doc")) return "DOC";
+  if (normalizedType.includes("excel") || normalizedType.includes("xls")) return "XLS";
+  if (normalizedType.includes("link") || normalizedType.includes("url")) return "WEB";
+  return "DOC";
+}
+
 function countDocumentsForCategory(resources, categoryId) {
-  return resources.filter((resource) => resource.category_id === categoryId).length;
+  return resources.filter((resource) => String(resource.category_id) === String(categoryId)).length;
 }
 
 function renderSelectableList(items, selectedId, options = {}) {
@@ -82,7 +162,7 @@ function renderSelectableList(items, selectedId, options = {}) {
 
           return `
             <button
-              class="category-item-button ${item.id === selectedId ? "is-selected" : ""}"
+              class="category-item-button ${String(item.id) === String(selectedId) ? "is-selected" : ""}"
               type="button"
               ${buttonAttr}="${item.id}"
             >
@@ -96,7 +176,7 @@ function renderSelectableList(items, selectedId, options = {}) {
   `;
 }
 
-function renderDocuments(resources, fallbackMessage) {
+function renderDocuments(resources, favoriteIds, fallbackMessage) {
   if (!resources.length) {
     return `<p class="empty-state">${fallbackMessage}</p>`;
   }
@@ -104,17 +184,43 @@ function renderDocuments(resources, fallbackMessage) {
   return `
     <div class="document-list">
       ${resources
-        .map(
-          (resource) => `
-            <article class="document-card">
+        .map((resource) => {
+          const resourceUrl = buildResourceUrl(resource);
+          const isFavorite = favoriteIds.includes(String(resource.id));
+
+          return `
+            <article class="document-card ${isFavorite ? "is-favorite" : ""}">
               <div class="document-card-header">
-                <p class="card-tag">${getResourceTypeLabel(resource.type)}</p>
+                <div class="document-badge-group">
+                  <span class="doc-icon">${getResourceIcon(resource.type)}</span>
+                  <p class="card-tag">${getResourceTypeLabel(resource.type)}</p>
+                </div>
+                <button
+                  class="favorite-toggle ${isFavorite ? "is-active" : ""}"
+                  type="button"
+                  data-favorite-id="${resource.id}"
+                  aria-label="${isFavorite ? "Retirer des favoris" : "Ajouter aux favoris"}"
+                >
+                  ★
+                </button>
               </div>
+
               <h4>${resource.title}</h4>
-              <p class="document-meta">Document prêt pour extension : type, description, lien, bouton ouvrir.</p>
+              <p class="document-meta">${resource.description || "Document prêt pour extension : description, lien et métadonnées."}</p>
+
+              <div class="document-actions">
+                <button
+                  class="button button-secondary button-small"
+                  type="button"
+                  ${resourceUrl ? `data-open-url="${resourceUrl}"` : "disabled"}
+                >
+                  Ouvrir
+                </button>
+                <span class="document-hint">${resourceUrl ? "Ouverture dans un nouvel onglet" : "Lien non disponible pour le moment"}</span>
+              </div>
             </article>
-          `
-        )
+          `;
+        })
         .join("")}
     </div>
   `;
@@ -133,7 +239,7 @@ function buildBreadcrumb(rootCategory, subcategory) {
 }
 
 function normalizeSelection(categories, rootCategories, selectedRootId, selectedSubcategoryId) {
-  const safeRoot = rootCategories.find((category) => category.id === selectedRootId) ?? rootCategories[0] ?? null;
+  const safeRoot = rootCategories.find((category) => String(category.id) === String(selectedRootId)) ?? rootCategories[0] ?? null;
   const subcategories = safeRoot ? getDirectChildren(categories, safeRoot.id) : [];
 
   if (!safeRoot) {
@@ -157,7 +263,7 @@ function normalizeSelection(categories, rootCategories, selectedRootId, selected
   }
 
   const safeSubcategory =
-    subcategories.find((subcategory) => subcategory.id === selectedSubcategoryId) ?? subcategories[0];
+    subcategories.find((subcategory) => String(subcategory.id) === String(selectedSubcategoryId)) ?? subcategories[0];
 
   return {
     selectedRoot: safeRoot,
@@ -168,12 +274,182 @@ function normalizeSelection(categories, rootCategories, selectedRootId, selected
   };
 }
 
+function buildSearchResults(query, categories, resources, rootCategories, categoryMap) {
+  const normalizedQuery = normalizeText(query);
+
+  if (!normalizedQuery) {
+    return [];
+  }
+
+  const rootIdSet = new Set(rootCategories.map((category) => String(category.id)));
+
+  const categoryResults = rootCategories
+    .filter((category) => normalizeText(category.name).includes(normalizedQuery))
+    .map((category) => ({
+      id: `root-${category.id}`,
+      kind: "category",
+      label: category.name,
+      meta: "Catégorie racine",
+      rootId: category.id,
+      subcategoryId: null
+    }));
+
+  const subcategoryResults = categories
+    .filter((category) => category.parent_id != null && normalizeText(category.name).includes(normalizedQuery))
+    .filter((category) => rootIdSet.has(String(category.parent_id)))
+    .map((category) => ({
+      id: `subcategory-${category.id}`,
+      kind: "subcategory",
+      label: category.name,
+      meta: `Sous-catégorie de ${categoryMap.get(String(category.parent_id))?.name ?? "Catégorie inconnue"}`,
+      rootId: category.parent_id,
+      subcategoryId: category.id
+    }));
+
+  const documentResults = resources
+    .filter((resource) => normalizeText(resource.title).includes(normalizedQuery))
+    .map((resource) => {
+      const category = categoryMap.get(String(resource.category_id)) ?? null;
+      const rootCategory = category?.parent_id != null
+        ? categoryMap.get(String(category.parent_id)) ?? null
+        : category;
+
+      const rootId = rootCategory?.id ?? category?.id ?? null;
+      const subcategoryId = category?.parent_id != null ? category.id : null;
+      const location = rootCategory && category?.parent_id != null
+        ? `${rootCategory.name} > ${category.name}`
+        : category?.name ?? "Non classé";
+
+      return {
+        id: `resource-${resource.id}`,
+        kind: "document",
+        label: resource.title,
+        meta: `Document - ${location}`,
+        rootId,
+        subcategoryId,
+        resourceId: resource.id
+      };
+    })
+    .filter((result) => result.rootId != null);
+
+  return [...categoryResults, ...subcategoryResults, ...documentResults];
+}
+
+function renderSearchResults(results, query) {
+  if (!query.trim()) {
+    return "";
+  }
+
+  return `
+    <section class="search-results-panel">
+      <div class="category-toolbar-header">
+        <div>
+          <p class="section-kicker">Recherche</p>
+          <h3>Résultats</h3>
+        </div>
+        <span class="pill is-user">${results.length} résultat(s)</span>
+      </div>
+
+      ${
+        results.length
+          ? `
+            <div class="search-results-list">
+              ${results
+                .map(
+                  (result) => `
+                    <button
+                      class="search-result-card"
+                      type="button"
+                      data-search-root-id="${result.rootId}"
+                      data-search-subcategory-id="${result.subcategoryId ?? ""}"
+                    >
+                      <span class="search-result-kind">${result.kind}</span>
+                      <strong>${result.label}</strong>
+                      <small>${result.meta}</small>
+                    </button>
+                  `
+                )
+                .join("")}
+            </div>
+          `
+          : `<p class="empty-state">Aucun résultat pour "${query}".</p>`
+      }
+    </section>
+  `;
+}
+
+function attachSharedDocumentEvents(container, rerender) {
+  container.querySelectorAll("[data-open-url]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const url = button.dataset.openUrl;
+
+      if (url) {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+    });
+  });
+
+  container.querySelectorAll("[data-favorite-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      toggleFavoriteResource(button.dataset.favoriteId);
+      rerender();
+    });
+  });
+}
+
+function enhanceMobileFocus(container) {
+  const documentsColumn = container.querySelector(".category-column-documents");
+
+  if (documentsColumn && window.innerWidth <= 960) {
+    documentsColumn.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+export async function renderFavoritesView(container) {
+  container.innerHTML = '<p class="muted">Chargement des favoris...</p>';
+
+  try {
+    const resources = await fetchResources();
+    const favoriteIds = getStoredFavoriteIds();
+    const favoriteResources = resources.filter((resource) => favoriteIds.includes(String(resource.id)));
+
+    const render = () => {
+      const refreshedFavorites = getStoredFavoriteIds();
+      const visibleResources = resources.filter((resource) => refreshedFavorites.includes(String(resource.id)));
+
+      container.innerHTML = `
+        <div class="favorites-view stack">
+          <div class="info-card">
+            <p class="section-kicker">Favoris</p>
+            <strong>${visibleResources.length} document(s) enregistré(s)</strong>
+            <p class="muted">Les favoris sont stockés localement dans ce navigateur.</p>
+          </div>
+
+          ${renderDocuments(
+            visibleResources,
+            refreshedFavorites,
+            "Aucun favori enregistré pour le moment."
+          )}
+        </div>
+      `;
+
+      attachSharedDocumentEvents(container, render);
+    };
+
+    render();
+  } catch (error) {
+    console.error(error);
+    container.innerHTML = '<p class="feedback is-error">Impossible de charger les favoris.</p>';
+  }
+}
+
 export async function renderCategoriesView(container, options = {}) {
   const { rootCategoryName = null } = options;
   container.innerHTML = '<p class="muted">Chargement des catégories...</p>';
 
   try {
     const [categories, resources] = await Promise.all([fetchCategories(), fetchResources()]);
+    const categoryMap = buildCategoryMap(categories);
 
     const rootResult = rootCategoryName
       ? getRootCategories(categories, rootCategoryName)
@@ -193,14 +469,11 @@ export async function renderCategoriesView(container, options = {}) {
 
     let selectedRootId = rootCategories[0].id;
     let selectedSubcategoryId = null;
+    let searchQuery = "";
 
     function render() {
-      const normalized = normalizeSelection(
-        categories,
-        rootCategories,
-        selectedRootId,
-        selectedSubcategoryId
-      );
+      const favoriteIds = getStoredFavoriteIds();
+      const normalized = normalizeSelection(categories, rootCategories, selectedRootId, selectedSubcategoryId);
 
       selectedRootId = normalized.selectedRootId;
       selectedSubcategoryId = normalized.selectedSubcategoryId;
@@ -209,11 +482,10 @@ export async function renderCategoriesView(container, options = {}) {
       const subcategories = normalized.subcategories;
       const selectedSubcategory = normalized.selectedSubcategory;
 
-      // If no subcategory exists, we still show documents attached directly to the root
-      // category so the UI stays useful for mixed data models.
       const activeDocumentCategoryId = selectedSubcategory?.id ?? selectedRoot?.id ?? null;
-      const documents = resources.filter((resource) => resource.category_id === activeDocumentCategoryId);
+      const documents = resources.filter((resource) => String(resource.category_id) === String(activeDocumentCategoryId));
       const breadcrumb = buildBreadcrumb(selectedRoot, selectedSubcategory);
+      const searchResults = buildSearchResults(searchQuery, categories, resources, rootCategories, categoryMap);
       const documentsTitle = selectedSubcategory
         ? `Documents de ${selectedSubcategory.name}`
         : selectedRoot
@@ -222,6 +494,34 @@ export async function renderCategoriesView(container, options = {}) {
 
       container.innerHTML = `
         <div class="categories-v2">
+          <div class="category-toolbar">
+            <div class="category-search">
+              <label class="field">
+                <span class="inline-label">Recherche rapide</span>
+                <input
+                  id="categorySearchInput"
+                  class="search-input"
+                  type="search"
+                  placeholder="Rechercher une catégorie, sous-catégorie ou un document..."
+                  value="${searchQuery}"
+                >
+              </label>
+            </div>
+
+            <div class="category-toolbar-stats">
+              <div class="info-card compact-card">
+                <p class="inline-label">Favoris</p>
+                <strong>${favoriteIds.length}</strong>
+              </div>
+              <div class="info-card compact-card">
+                <p class="inline-label">Documents</p>
+                <strong>${documents.length}</strong>
+              </div>
+            </div>
+          </div>
+
+          ${renderSearchResults(searchResults, searchQuery)}
+
           <div class="categories-summary">
             <div class="info-card">
               <p class="section-kicker">Navigation rapide</p>
@@ -241,7 +541,11 @@ export async function renderCategoriesView(container, options = {}) {
               ${renderSelectableList(rootCategories, selectedRootId, {
                 buttonAttr: "data-root-id",
                 emptyMessage: "Aucune catégorie racine disponible.",
-                helperText: (category) => `${getDirectChildren(categories, category.id).length} sous-catégorie(s)`
+                helperText: (category) => {
+                  const subcategoryCount = getDirectChildren(categories, category.id).length;
+                  const documentCount = countDocumentsForCategory(resources, category.id);
+                  return `${subcategoryCount} sous-catégorie(s) • ${documentCount} document(s)`;
+                }
               })}
             </section>
 
@@ -274,6 +578,7 @@ export async function renderCategoriesView(container, options = {}) {
               <p class="column-context">${documentsTitle}</p>
               ${renderDocuments(
                 documents,
+                favoriteIds,
                 selectedSubcategory
                   ? "Aucun document n'est lié à cette sous-catégorie."
                   : "Aucun document n'est lié à cette catégorie."
@@ -283,11 +588,27 @@ export async function renderCategoriesView(container, options = {}) {
         </div>
       `;
 
+      container.querySelector("#categorySearchInput")?.addEventListener("input", (event) => {
+        searchQuery = event.target.value;
+        render();
+      });
+
+      container.querySelectorAll("[data-search-root-id]").forEach((button) => {
+        button.addEventListener("click", () => {
+          selectedRootId = button.dataset.searchRootId;
+          selectedSubcategoryId = button.dataset.searchSubcategoryId || null;
+          searchQuery = "";
+          render();
+          enhanceMobileFocus(container);
+        });
+      });
+
       container.querySelectorAll("[data-root-id]").forEach((button) => {
         button.addEventListener("click", () => {
           selectedRootId = button.dataset.rootId;
           selectedSubcategoryId = null;
           render();
+          enhanceMobileFocus(container);
         });
       });
 
@@ -295,8 +616,11 @@ export async function renderCategoriesView(container, options = {}) {
         button.addEventListener("click", () => {
           selectedSubcategoryId = button.dataset.subcategoryId;
           render();
+          enhanceMobileFocus(container);
         });
       });
+
+      attachSharedDocumentEvents(container, render);
     }
 
     render();

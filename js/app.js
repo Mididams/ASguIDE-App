@@ -6,7 +6,11 @@ import {
   signOut,
   subscribeToAuthChanges
 } from "./auth.js";
-import { renderCategoriesView } from "./categories.js";
+import {
+  getFavoritesCount,
+  renderCategoriesView,
+  renderFavoritesView
+} from "./categories.js";
 import { renderCardsView } from "./cards.js";
 import { renderDirectoryView } from "./directory.js";
 import { renderAdminView } from "./admin.js";
@@ -18,6 +22,13 @@ const state = {
   currentView: "home"
 };
 
+const QUICK_LINKS = [
+  { id: "categories", title: "Catégories", description: "Accéder rapidement à l'arborescence médicale." },
+  { id: "directory", title: "Annuaires", description: "Retrouver les numéros utiles du service." },
+  { id: "cards", title: "Fiches médicaments", description: "Consulter les fiches thérapeutiques." },
+  { id: "favorites", title: "Favoris", description: "Ouvrir vos documents enregistrés localement." }
+];
+
 const viewConfig = {
   home: {
     label: "Accueil",
@@ -28,6 +39,11 @@ const viewConfig = {
     label: "Catégories",
     title: "Catégories",
     description: "Parcourez les catégories, sous-catégories et documents."
+  },
+  favorites: {
+    label: "Favoris",
+    title: "Favoris",
+    description: "Retrouvez rapidement vos documents enregistrés dans ce navigateur."
   },
   cards: {
     label: "Fiches médicaments",
@@ -78,7 +94,7 @@ function setFeedback(message = "", type = "is-error") {
 }
 
 function getNavigationItems() {
-  const items = ["home", "categories", "cards", "directory", "codes"];
+  const items = ["home", "categories", "favorites", "cards", "directory", "codes"];
 
   if (state.profile?.role === "admin") {
     items.push("admin");
@@ -110,6 +126,20 @@ function updateUserStatus() {
   `;
 }
 
+function getNavLabel(key) {
+  if (key === "favorites") {
+    return `${viewConfig[key].label} (${getFavoritesCount()})`;
+  }
+
+  return viewConfig[key].label;
+}
+
+function navigateTo(view) {
+  state.currentView = view;
+  renderNavigation();
+  renderCurrentView();
+}
+
 function renderNavigation() {
   const items = getNavigationItems();
 
@@ -121,7 +151,7 @@ function renderNavigation() {
     .map(
       (key) => `
         <button class="nav-button ${state.currentView === key ? "is-active" : ""}" type="button" data-view="${key}">
-          ${viewConfig[key].label}
+          ${getNavLabel(key)}
         </button>
       `
     )
@@ -129,9 +159,7 @@ function renderNavigation() {
 
   elements.mainNav.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => {
-      state.currentView = button.dataset.view;
-      renderNavigation();
-      renderCurrentView();
+      navigateTo(button.dataset.view);
     });
   });
 }
@@ -149,6 +177,8 @@ function renderViewHeader() {
 }
 
 function renderHomeView() {
+  const favoritesCount = getFavoritesCount();
+
   elements.mainContent.innerHTML = `
     <div class="stack">
       <div class="stats-row">
@@ -164,27 +194,60 @@ function renderHomeView() {
           <p class="inline-label">Statut</p>
           <strong>${state.profile?.status ?? "inconnu"}</strong>
         </article>
+        <article class="stat-card">
+          <p class="inline-label">Favoris</p>
+          <strong>${favoritesCount}</strong>
+        </article>
       </div>
+
+      <section class="quick-links-panel">
+        <div class="panel-header">
+          <div>
+            <p class="section-kicker">Accès rapide</p>
+            <h3>Raccourcis utiles</h3>
+          </div>
+        </div>
+
+        <div class="quick-links-grid">
+          ${QUICK_LINKS
+            .map(
+              (item) => `
+                <button class="quick-link-card" type="button" data-shortcut-view="${item.id}">
+                  <p class="card-tag">${item.title === "Favoris" ? `${favoritesCount} favori(s)` : "Raccourci"}</p>
+                  <strong>${item.title}</strong>
+                  <span>${item.description}</span>
+                </button>
+              `
+            )
+            .join("")}
+        </div>
+      </section>
 
       <div class="card-grid">
         <article class="info-card">
           <p class="section-kicker">Application</p>
-          <strong>Base V1 opérationnelle</strong>
-          <p class="muted">Connexion, contrôle d'accès, navigation et chargement Supabase sont déjà reliés.</p>
+          <strong>Base V2 opérationnelle</strong>
+          <p class="muted">Recherche, favoris, accès rapide et navigation enrichie sont désormais intégrés.</p>
         </article>
         <article class="info-card">
           <p class="section-kicker">Contenus</p>
           <strong>Documents et fiches</strong>
-          <p class="muted">Les catégories, ressources, fiches médicaments et annuaires sont déjà reliés aux tables existantes.</p>
+          <p class="muted">Les catégories, ressources, fiches médicaments et annuaires restent reliés aux tables existantes.</p>
         </article>
         <article class="info-card">
-          <p class="section-kicker">Évolution</p>
-          <strong>Structure extensible</strong>
-          <p class="muted">La base est prête pour enrichir les documents, ajouter la PWA et avancer vers un vrai CRUD.</p>
+          <p class="section-kicker">Usage terrain</p>
+          <strong>Accès plus rapide</strong>
+          <p class="muted">Les raccourcis et favoris facilitent l'accès aux contenus utiles en situation réelle.</p>
         </article>
       </div>
     </div>
   `;
+
+  elements.mainContent.querySelectorAll("[data-shortcut-view]").forEach((button) => {
+    button.addEventListener("click", () => {
+      navigateTo(button.dataset.shortcutView);
+    });
+  });
 }
 
 async function renderCurrentView() {
@@ -193,6 +256,9 @@ async function renderCurrentView() {
   switch (state.currentView) {
     case "categories":
       await renderCategoriesView(elements.mainContent);
+      break;
+    case "favorites":
+      await renderFavoritesView(elements.mainContent);
       break;
     case "cards":
       await renderCardsView(elements.mainContent);
@@ -306,6 +372,14 @@ function registerEvents() {
 
   subscribeToAuthChanges(async () => {
     await refreshAuthState();
+  });
+
+  window.addEventListener("favorites:changed", () => {
+    renderNavigation();
+
+    if (state.currentView === "home" || state.currentView === "favorites") {
+      renderCurrentView();
+    }
   });
 }
 
