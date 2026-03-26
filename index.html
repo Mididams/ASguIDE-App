@@ -15,7 +15,7 @@
 
   <div class="page-shell">
     <header class="topbar">
-      <div>
+      <div class="topbar-brand">
         <p class="eyebrow">Urgences URM</p>
         <h1>ASguIDE</h1>
       </div>
@@ -29,9 +29,14 @@
           </div>
         </div>
 
-        <button id="logoutBtn" class="button button-secondary hidden" type="button">
-          Déconnexion
-        </button>
+        <div class="topbar-buttons">
+          <button id="logoutBtn" class="button button-secondary hidden" type="button">
+            Déconnexion
+          </button>
+          <button id="adminBtn" class="button button-secondary hidden" type="button">
+            Administration
+          </button>
+        </div>
       </div>
     </header>
 
@@ -79,19 +84,9 @@
       </section>
 
       <section id="appPanel" class="app-panel hidden">
-        <aside class="sidebar panel">
-          <div class="panel-header">
-            <div>
-              <p class="section-kicker">Navigation</p>
-              <h2>Menu principal</h2>
-            </div>
-          </div>
-
-          <nav id="mainNav" class="nav-list" aria-label="Navigation principale"></nav>
-        </aside>
+        <nav id="mainNav" class="app-nav panel" aria-label="Navigation principale"></nav>
 
         <section class="content-column">
-          <div id="viewHeader" class="panel view-header"></div>
           <section id="mainContent" class="panel content-panel"></section>
         </section>
       </section>

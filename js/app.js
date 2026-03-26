@@ -1,4 +1,3 @@
-import { APP_NAME } from "./config.js";
 import {
   getAuthContext,
   getProfileDisplayName,
@@ -78,9 +77,9 @@ const elements = {
   authMessage: document.getElementById("authMessage"),
   userStatus: document.getElementById("userStatus"),
   logoutBtn: document.getElementById("logoutBtn"),
+  adminBtn: document.getElementById("adminBtn"),
   waitingMessage: document.getElementById("waitingMessage"),
   mainNav: document.getElementById("mainNav"),
-  viewHeader: document.getElementById("viewHeader"),
   mainContent: document.getElementById("mainContent")
 };
 
@@ -94,13 +93,7 @@ function setFeedback(message = "", type = "is-error") {
 }
 
 function getNavigationItems() {
-  const items = ["home", "categories", "favorites", "cards", "directory", "codes"];
-
-  if (state.profile?.role === "admin") {
-    items.push("admin");
-  }
-
-  return items;
+  return ["home", "categories", "favorites", "cards", "directory", "codes"];
 }
 
 function updateUserStatus() {
@@ -142,8 +135,9 @@ function navigateTo(view) {
 
 function renderNavigation() {
   const items = getNavigationItems();
+  const canAccessAdmin = state.currentView === "admin" && state.profile?.role === "admin";
 
-  if (!items.includes(state.currentView)) {
+  if (!items.includes(state.currentView) && !canAccessAdmin) {
     state.currentView = "home";
   }
 
@@ -164,42 +158,11 @@ function renderNavigation() {
   });
 }
 
-function renderViewHeader() {
-  const config = viewConfig[state.currentView];
-
-  elements.viewHeader.innerHTML = `
-    <div>
-      <p class="section-kicker">${APP_NAME}</p>
-      <h2 class="view-title">${config.title}</h2>
-      <p>${config.description}</p>
-    </div>
-  `;
-}
-
 function renderHomeView() {
   const favoritesCount = getFavoritesCount();
 
   elements.mainContent.innerHTML = `
     <div class="stack">
-      <div class="stats-row">
-        <article class="stat-card">
-          <p class="inline-label">Utilisateur</p>
-          <strong>${getProfileDisplayName(state.profile)}</strong>
-        </article>
-        <article class="stat-card">
-          <p class="inline-label">Rôle</p>
-          <strong>${state.profile?.role ?? "inconnu"}</strong>
-        </article>
-        <article class="stat-card">
-          <p class="inline-label">Statut</p>
-          <strong>${state.profile?.status ?? "inconnu"}</strong>
-        </article>
-        <article class="stat-card">
-          <p class="inline-label">Favoris</p>
-          <strong>${favoritesCount}</strong>
-        </article>
-      </div>
-
       <section class="quick-links-panel">
         <div class="panel-header">
           <div>
@@ -222,24 +185,6 @@ function renderHomeView() {
             .join("")}
         </div>
       </section>
-
-      <div class="card-grid">
-        <article class="info-card">
-          <p class="section-kicker">Application</p>
-          <strong>Base V2 opérationnelle</strong>
-          <p class="muted">Recherche, favoris, accès rapide et navigation enrichie sont désormais intégrés.</p>
-        </article>
-        <article class="info-card">
-          <p class="section-kicker">Contenus</p>
-          <strong>Documents et fiches</strong>
-          <p class="muted">Les catégories, ressources, fiches médicaments et annuaires restent reliés aux tables existantes.</p>
-        </article>
-        <article class="info-card">
-          <p class="section-kicker">Usage terrain</p>
-          <strong>Accès plus rapide</strong>
-          <p class="muted">Les raccourcis et favoris facilitent l'accès aux contenus utiles en situation réelle.</p>
-        </article>
-      </div>
     </div>
   `;
 
@@ -251,8 +196,6 @@ function renderHomeView() {
 }
 
 async function renderCurrentView() {
-  renderViewHeader();
-
   switch (state.currentView) {
     case "categories":
       await renderCategoriesView(elements.mainContent);
@@ -289,8 +232,10 @@ function renderAccessState() {
 
   const isConnected = Boolean(state.user);
   const isApproved = state.profile?.status === "approved";
+  const isAdmin = state.profile?.role === "admin";
 
   elements.logoutBtn.classList.toggle("hidden", !isConnected);
+  elements.adminBtn.classList.toggle("hidden", !isConnected || !isApproved || !isAdmin);
   elements.authPanel.classList.toggle("hidden", isConnected);
   elements.waitingPanel.classList.toggle("hidden", !isConnected || isApproved);
   elements.appPanel.classList.toggle("hidden", !isConnected || !isApproved);
@@ -369,6 +314,7 @@ async function handleLogout() {
 function registerEvents() {
   elements.loginForm.addEventListener("submit", handleLoginSubmit);
   elements.logoutBtn.addEventListener("click", handleLogout);
+  elements.adminBtn.addEventListener("click", () => navigateTo("admin"));
 
   subscribeToAuthChanges(async () => {
     await refreshAuthState();

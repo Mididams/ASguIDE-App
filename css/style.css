@@ -77,17 +77,37 @@ input {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 24px;
-  padding: 20px 24px;
+  min-height: 88px;
+  padding: 12px 24px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow);
+  position: relative;
 }
 
 .topbar h1,
 .panel h2,
 .view-title {
   margin: 0;
+}
+
+.topbar-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 22px;
+  min-width: 0;
+}
+
+.topbar-brand h1 {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: clamp(2.2rem, 3vw, 3rem);
+  line-height: 1;
+  text-align: center;
+  color: var(--primary);
 }
 
 .eyebrow,
@@ -102,11 +122,29 @@ input {
   color: var(--primary);
 }
 
+.topbar .eyebrow {
+  margin: 0;
+  font-size: 1.05rem;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  color: var(--text);
+}
+
 .topbar-actions {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.topbar-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.topbar-buttons .button {
+  width: 100%;
 }
 
 .user-status {
@@ -290,14 +328,16 @@ input:focus,
 
 .app-panel {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
   gap: 24px;
 }
 
-.sidebar {
-  align-self: start;
-  position: sticky;
-  top: 24px;
+.app-nav {
+  display: flex;
+  gap: 10px;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  overflow-x: auto;
 }
 
 .nav-button,
@@ -312,6 +352,16 @@ input:focus,
   border-radius: var(--radius-md);
   cursor: pointer;
   font-weight: 700;
+}
+
+.nav-button {
+  width: auto;
+  min-width: 0;
+  padding: 12px 14px;
+  text-align: center;
+  white-space: nowrap;
+  flex: 1 1 0;
+  font-size: 0.98rem;
 }
 
 .nav-button.is-active,
@@ -841,7 +891,6 @@ input:focus,
 }
 
 @media (max-width: 960px) {
-  .app-panel,
   .two-columns {
     grid-template-columns: 1fr;
   }
@@ -864,13 +913,26 @@ input:focus,
     flex-direction: column;
   }
 
-  .sidebar {
-    position: static;
+  .app-nav {
+    gap: 12px;
   }
 
   .topbar {
     align-items: flex-start;
     flex-direction: column;
+    min-height: unset;
+  }
+
+  .topbar-brand {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .topbar-brand h1 {
+    position: static;
+    transform: none;
+    text-align: left;
   }
 }
 
@@ -891,6 +953,20 @@ input:focus,
   .topbar-actions,
   .button {
     width: 100%;
+  }
+
+  .topbar-buttons {
+    width: 100%;
+  }
+
+  .app-nav {
+    padding: 14px;
+    gap: 10px;
+  }
+
+  .nav-button {
+    flex: 1 1 100%;
+    min-width: 0;
   }
 
   .category-toolbar-stats,
