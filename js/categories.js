@@ -285,7 +285,7 @@ export async function renderCategoriesView(container, options = {}) {
 
       container.querySelectorAll("[data-root-id]").forEach((button) => {
         button.addEventListener("click", () => {
-          selectedRootId = Number(button.dataset.rootId);
+          selectedRootId = button.dataset.rootId;
           selectedSubcategoryId = null;
           render();
         });
@@ -293,7 +293,7 @@ export async function renderCategoriesView(container, options = {}) {
 
       container.querySelectorAll("[data-subcategory-id]").forEach((button) => {
         button.addEventListener("click", () => {
-          selectedSubcategoryId = Number(button.dataset.subcategoryId);
+          selectedSubcategoryId = button.dataset.subcategoryId;
           render();
         });
       });
