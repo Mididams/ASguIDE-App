@@ -26,81 +26,92 @@ async function fetchResources() {
   return data ?? [];
 }
 
-function createChildrenMap(categories) {
-  const map = new Map();
-
-  categories.forEach((category) => {
-    const key = category.parent_id ?? "root";
-    const siblings = map.get(key) ?? [];
-    siblings.push(category);
-    map.set(key, siblings);
-  });
-
-  return map;
-}
-
-function buildTreeFromParent(parentKey, byParent) {
-  return (byParent.get(parentKey) ?? []).map((category) => ({
-    ...category,
-    children: buildTreeFromParent(category.id, byParent)
-  }));
-}
-
 function findCategoryByName(categories, targetName) {
   return categories.find(
     (category) => category.name.trim().toLowerCase() === targetName.trim().toLowerCase()
   );
 }
 
-function collectCategoryIds(category, categoriesByParent) {
-  const ids = [category.id];
-  const children = categoriesByParent.get(category.id) ?? [];
-
-  children.forEach((child) => {
-    ids.push(...collectCategoryIds(child, categoriesByParent));
-  });
-
-  return ids;
+function getDirectChildren(categories, parentId) {
+  return categories.filter((category) => category.parent_id === parentId);
 }
 
-function getResourceLabel(type) {
+function getRootCategories(categories, rootCategoryName) {
+  if (!rootCategoryName) {
+    return categories.filter((category) => category.parent_id == null);
+  }
+
+  const namedRoot = findCategoryByName(categories, rootCategoryName);
+
+  if (!namedRoot) {
+    return { namedRoot: null, rootCategories: [] };
+  }
+
+  const children = getDirectChildren(categories, namedRoot.id);
+
+  return {
+    namedRoot,
+    rootCategories: children.length ? children : [namedRoot]
+  };
+}
+
+function getResourceTypeLabel(type) {
   return type ? String(type).toUpperCase() : "DOCUMENT";
 }
 
-function renderTree(nodes, selectedId) {
-  if (!nodes.length) {
-    return '<p class="empty-state">Aucune catégorie disponible.</p>';
-  }
-
-  return nodes
-    .map(
-      (node) => `
-        <div class="tree-node">
-          <button class="tree-button ${node.id === selectedId ? "is-selected" : ""}" data-category-id="${node.id}" type="button">
-            <strong>${node.name}</strong>
-            <small>${node.children.length} sous-catégorie(s)</small>
-          </button>
-          ${node.children.length ? `<div class="tree-children">${renderTree(node.children, selectedId)}</div>` : ""}
-        </div>
-      `
-    )
-    .join("");
+function countDocumentsForCategory(resources, categoryId) {
+  return resources.filter((resource) => resource.category_id === categoryId).length;
 }
 
-function renderResources(resources) {
-  if (!resources.length) {
-    return '<p class="empty-state">Aucun document trouvé dans cette section.</p>';
+function renderSelectableList(items, selectedId, options = {}) {
+  const {
+    buttonAttr,
+    emptyMessage,
+    helperText = null
+  } = options;
+
+  if (!items.length) {
+    return `<p class="empty-state">${emptyMessage}</p>`;
   }
 
   return `
-    <div class="resource-grid">
+    <div class="category-list">
+      ${items
+        .map((item) => {
+          const meta = helperText ? helperText(item) : "";
+
+          return `
+            <button
+              class="category-item-button ${item.id === selectedId ? "is-selected" : ""}"
+              type="button"
+              ${buttonAttr}="${item.id}"
+            >
+              <strong>${item.name}</strong>
+              ${meta ? `<small>${meta}</small>` : ""}
+            </button>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function renderDocuments(resources, fallbackMessage) {
+  if (!resources.length) {
+    return `<p class="empty-state">${fallbackMessage}</p>`;
+  }
+
+  return `
+    <div class="document-list">
       ${resources
         .map(
           (resource) => `
-            <article class="resource-card">
-              <p class="card-tag">${getResourceLabel(resource.type)}</p>
+            <article class="document-card">
+              <div class="document-card-header">
+                <p class="card-tag">${getResourceTypeLabel(resource.type)}</p>
+              </div>
               <h4>${resource.title}</h4>
-              <p class="resource-meta">Catégorie ID : ${resource.category_id}</p>
+              <p class="document-meta">Document prêt pour extension : type, description, lien, bouton ouvrir.</p>
             </article>
           `
         )
@@ -109,47 +120,52 @@ function renderResources(resources) {
   `;
 }
 
-function buildCategoryDetails(category, categoriesByParent, resources) {
-  const ids = collectCategoryIds(category, categoriesByParent);
-  const relatedResources = resources.filter((resource) => ids.includes(resource.category_id));
-  const childCategories = categoriesByParent.get(category.id) ?? [];
+function buildBreadcrumb(rootCategory, subcategory) {
+  if (!rootCategory) {
+    return "Aucune catégorie sélectionnée";
+  }
 
-  return `
-    <div class="stack">
-      <div class="info-card">
-        <p class="section-kicker">Catégorie sélectionnée</p>
-        <strong>${category.name}</strong>
-        <p class="muted">${childCategories.length} sous-catégorie(s) et ${relatedResources.length} document(s) disponibles.</p>
-      </div>
+  if (!subcategory) {
+    return rootCategory.name;
+  }
 
-      ${
-        childCategories.length
-          ? `
-            <div class="list-panel">
-              <h3>Sous-catégories</h3>
-              <div class="resource-grid">
-                ${childCategories
-                  .map(
-                    (child) => `
-                      <article class="resource-card">
-                        <h4>${child.name}</h4>
-                        <p class="resource-meta">Sous-catégorie de ${category.name}</p>
-                      </article>
-                    `
-                  )
-                  .join("")}
-              </div>
-            </div>
-          `
-          : ""
-      }
+  return `${rootCategory.name} > ${subcategory.name}`;
+}
 
-      <div class="list-panel">
-        <h3>Documents</h3>
-        ${renderResources(relatedResources)}
-      </div>
-    </div>
-  `;
+function normalizeSelection(categories, rootCategories, selectedRootId, selectedSubcategoryId) {
+  const safeRoot = rootCategories.find((category) => category.id === selectedRootId) ?? rootCategories[0] ?? null;
+  const subcategories = safeRoot ? getDirectChildren(categories, safeRoot.id) : [];
+
+  if (!safeRoot) {
+    return {
+      selectedRoot: null,
+      selectedSubcategory: null,
+      subcategories,
+      selectedRootId: null,
+      selectedSubcategoryId: null
+    };
+  }
+
+  if (!subcategories.length) {
+    return {
+      selectedRoot: safeRoot,
+      selectedSubcategory: null,
+      subcategories,
+      selectedRootId: safeRoot.id,
+      selectedSubcategoryId: null
+    };
+  }
+
+  const safeSubcategory =
+    subcategories.find((subcategory) => subcategory.id === selectedSubcategoryId) ?? subcategories[0];
+
+  return {
+    selectedRoot: safeRoot,
+    selectedSubcategory: safeSubcategory,
+    subcategories,
+    selectedRootId: safeRoot.id,
+    selectedSubcategoryId: safeSubcategory.id
+  };
 }
 
 export async function renderCategoriesView(container, options = {}) {
@@ -158,51 +174,130 @@ export async function renderCategoriesView(container, options = {}) {
 
   try {
     const [categories, resources] = await Promise.all([fetchCategories(), fetchResources()]);
-    const byParent = createChildrenMap(categories);
 
-    let tree = buildTreeFromParent("root", byParent);
-    let selectedCategory = tree[0] ?? null;
+    const rootResult = rootCategoryName
+      ? getRootCategories(categories, rootCategoryName)
+      : { namedRoot: null, rootCategories: getRootCategories(categories) };
 
-    if (rootCategoryName) {
-      const rootCategory = findCategoryByName(categories, rootCategoryName);
-
-      if (!rootCategory) {
-        container.innerHTML = `<p class="feedback is-warning">La catégorie "${rootCategoryName}" est introuvable.</p>`;
-        return;
-      }
-
-      tree = buildTreeFromParent(rootCategory.id, byParent);
-      selectedCategory = tree[0] ?? rootCategory;
+    if (rootCategoryName && !rootResult.namedRoot) {
+      container.innerHTML = `<p class="feedback is-warning">La catégorie "${rootCategoryName}" est introuvable.</p>`;
+      return;
     }
 
-    let selectedCategoryId = selectedCategory?.id ?? null;
+    const rootCategories = rootResult.rootCategories;
 
-    const render = () => {
-      const activeCategory = categories.find((item) => item.id === selectedCategoryId) ?? null;
+    if (!rootCategories.length) {
+      container.innerHTML = '<p class="empty-state">Aucune catégorie racine disponible.</p>';
+      return;
+    }
+
+    let selectedRootId = rootCategories[0].id;
+    let selectedSubcategoryId = null;
+
+    function render() {
+      const normalized = normalizeSelection(
+        categories,
+        rootCategories,
+        selectedRootId,
+        selectedSubcategoryId
+      );
+
+      selectedRootId = normalized.selectedRootId;
+      selectedSubcategoryId = normalized.selectedSubcategoryId;
+
+      const selectedRoot = normalized.selectedRoot;
+      const subcategories = normalized.subcategories;
+      const selectedSubcategory = normalized.selectedSubcategory;
+
+      // If no subcategory exists, we still show documents attached directly to the root
+      // category so the UI stays useful for mixed data models.
+      const activeDocumentCategoryId = selectedSubcategory?.id ?? selectedRoot?.id ?? null;
+      const documents = resources.filter((resource) => resource.category_id === activeDocumentCategoryId);
+      const breadcrumb = buildBreadcrumb(selectedRoot, selectedSubcategory);
+      const documentsTitle = selectedSubcategory
+        ? `Documents de ${selectedSubcategory.name}`
+        : selectedRoot
+          ? `Documents de ${selectedRoot.name}`
+          : "Documents";
 
       container.innerHTML = `
-        <div class="two-columns">
-          <div class="list-panel">
-            <h3>${rootCategoryName ? "Arborescence ciblée" : "Arborescence"}</h3>
-            ${renderTree(tree, selectedCategoryId)}
+        <div class="categories-v2">
+          <div class="categories-summary">
+            <div class="info-card">
+              <p class="section-kicker">Navigation rapide</p>
+              <strong>${breadcrumb}</strong>
+              <p class="muted">
+                ${rootCategories.length} catégorie(s), ${subcategories.length} sous-catégorie(s), ${documents.length} document(s).
+              </p>
+            </div>
           </div>
-          <div class="detail-panel">
-            ${
-              activeCategory
-                ? buildCategoryDetails(activeCategory, byParent, resources)
-                : '<p class="empty-state">Sélectionnez une catégorie pour voir ses documents.</p>'
-            }
+
+          <div class="categories-columns">
+            <section class="category-column">
+              <div class="category-column-header">
+                <p class="section-kicker">Étape 1</p>
+                <h3>Catégories</h3>
+              </div>
+              ${renderSelectableList(rootCategories, selectedRootId, {
+                buttonAttr: "data-root-id",
+                emptyMessage: "Aucune catégorie racine disponible.",
+                helperText: (category) => `${getDirectChildren(categories, category.id).length} sous-catégorie(s)`
+              })}
+            </section>
+
+            <section class="category-column">
+              <div class="category-column-header">
+                <p class="section-kicker">Étape 2</p>
+                <h3>Sous-catégories</h3>
+              </div>
+              ${
+                subcategories.length
+                  ? renderSelectableList(subcategories, selectedSubcategoryId, {
+                      buttonAttr: "data-subcategory-id",
+                      emptyMessage: "Aucune sous-catégorie disponible.",
+                      helperText: (subcategory) => `${countDocumentsForCategory(resources, subcategory.id)} document(s)`
+                    })
+                  : `
+                    <div class="empty-panel">
+                      <p class="empty-state">Aucune sous-catégorie pour cette catégorie.</p>
+                      <p class="muted">Les documents affichés à droite sont donc ceux liés directement à la catégorie sélectionnée.</p>
+                    </div>
+                  `
+              }
+            </section>
+
+            <section class="category-column category-column-documents">
+              <div class="category-column-header">
+                <p class="section-kicker">Étape 3</p>
+                <h3>Documents</h3>
+              </div>
+              <p class="column-context">${documentsTitle}</p>
+              ${renderDocuments(
+                documents,
+                selectedSubcategory
+                  ? "Aucun document n'est lié à cette sous-catégorie."
+                  : "Aucun document n'est lié à cette catégorie."
+              )}
+            </section>
           </div>
         </div>
       `;
 
-      container.querySelectorAll("[data-category-id]").forEach((button) => {
+      container.querySelectorAll("[data-root-id]").forEach((button) => {
         button.addEventListener("click", () => {
-          selectedCategoryId = Number(button.dataset.categoryId);
+          selectedRootId = Number(button.dataset.rootId);
+          selectedSubcategoryId = null;
           render();
         });
       });
-    };
+
+      container.querySelectorAll("[data-subcategory-id]").forEach((button) => {
+        button.addEventListener("click", () => {
+          selectedSubcategoryId = Number(button.dataset.subcategoryId);
+          render();
+        });
+      });
+    }
 
     render();
   } catch (error) {
