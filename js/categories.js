@@ -1,32 +1,10 @@
 import { supabaseClient } from "./config.js";
+import {
+  createOpenDocumentUrl,
+  getResourceOpenMode
+} from "./uploads.js";
 
 const FAVORITES_STORAGE_KEY = "asguide.favoriteResources";
-
-async function fetchCategories() {
-  const { data, error } = await supabaseClient
-    .from("categories")
-    .select("id, name, parent_id")
-    .order("name", { ascending: true });
-
-  if (error) {
-    throw error;
-  }
-
-  return data ?? [];
-}
-
-async function fetchResources() {
-  const { data, error } = await supabaseClient
-    .from("resources")
-    .select("*")
-    .order("title", { ascending: true });
-
-  if (error) {
-    throw error;
-  }
-
-  return data ?? [];
-}
 
 function normalizeText(value) {
   return String(value ?? "")
@@ -34,6 +12,41 @@ function normalizeText(value) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+}
+
+function compareBySortOrder(a, b) {
+  const aOrder = Number.isFinite(Number(a?.sort_order)) ? Number(a.sort_order) : Number.MAX_SAFE_INTEGER;
+  const bOrder = Number.isFinite(Number(b?.sort_order)) ? Number(b.sort_order) : Number.MAX_SAFE_INTEGER;
+
+  if (aOrder !== bOrder) {
+    return aOrder - bOrder;
+  }
+
+  return normalizeText(a?.name ?? a?.title).localeCompare(normalizeText(b?.name ?? b?.title));
+}
+
+async function fetchCategories() {
+  const { data, error } = await supabaseClient
+    .from("categories")
+    .select("*");
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).sort(compareBySortOrder);
+}
+
+async function fetchResources() {
+  const { data, error } = await supabaseClient
+    .from("resources")
+    .select("*");
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).sort(compareBySortOrder);
 }
 
 function getStoredFavoriteIds() {
@@ -84,12 +97,14 @@ function findCategoryByName(categories, targetName) {
 }
 
 function getDirectChildren(categories, parentId) {
-  return categories.filter((category) => String(category.parent_id) === String(parentId));
+  return categories
+    .filter((category) => String(category.parent_id) === String(parentId))
+    .sort(compareBySortOrder);
 }
 
 function getRootCategories(categories, rootCategoryName) {
   if (!rootCategoryName) {
-    return categories.filter((category) => category.parent_id == null);
+    return categories.filter((category) => category.parent_id == null).sort(compareBySortOrder);
   }
 
   const namedRoot = findCategoryByName(categories, rootCategoryName);
@@ -108,20 +123,6 @@ function getRootCategories(categories, rootCategoryName) {
 
 function buildCategoryMap(categories) {
   return new Map(categories.map((category) => [String(category.id), category]));
-}
-
-function buildResourceUrl(resource) {
-  const candidateKeys = ["url", "link", "file_url", "file_link", "href", "document_url"];
-
-  for (const key of candidateKeys) {
-    const value = resource?.[key];
-
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-
-  return "";
 }
 
 function getResourceTypeLabel(type) {
@@ -185,8 +186,14 @@ function renderDocuments(resources, favoriteIds, fallbackMessage) {
     <div class="document-list">
       ${resources
         .map((resource) => {
-          const resourceUrl = buildResourceUrl(resource);
           const isFavorite = favoriteIds.includes(String(resource.id));
+          const openMode = getResourceOpenMode(resource);
+          const hasOpenAction = openMode !== "none";
+          const actionLabel = openMode === "external"
+            ? "Lien externe"
+            : openMode === "signed"
+              ? "Accès sécurisé"
+              : "Lien non disponible";
 
           return `
             <article class="document-card ${isFavorite ? "is-favorite" : ""}">
@@ -206,17 +213,17 @@ function renderDocuments(resources, favoriteIds, fallbackMessage) {
               </div>
 
               <h4>${resource.title}</h4>
-              <p class="document-meta">${resource.description || "Document prêt pour extension : description, lien et métadonnées."}</p>
+              <p class="document-meta">${resource.description || "Aucune description renseignée."}</p>
 
               <div class="document-actions">
                 <button
                   class="button button-secondary button-small"
                   type="button"
-                  ${resourceUrl ? `data-open-url="${resourceUrl}"` : "disabled"}
+                  ${hasOpenAction ? `data-open-resource-id="${resource.id}"` : "disabled"}
                 >
                   Ouvrir
                 </button>
-                <span class="document-hint">${resourceUrl ? "Ouverture dans un nouvel onglet" : "Lien non disponible pour le moment"}</span>
+                <span class="document-hint">${actionLabel}</span>
               </div>
             </article>
           `;
@@ -326,8 +333,7 @@ function buildSearchResults(query, categories, resources, rootCategories, catego
         label: resource.title,
         meta: `Document - ${location}`,
         rootId,
-        subcategoryId,
-        resourceId: resource.id
+        subcategoryId
       };
     })
     .filter((result) => result.rootId != null);
@@ -378,13 +384,30 @@ function renderSearchResults(results, query) {
   `;
 }
 
-function attachSharedDocumentEvents(container, rerender) {
-  container.querySelectorAll("[data-open-url]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const url = button.dataset.openUrl;
+function attachSharedDocumentEvents(container, rerender, resources) {
+  container.querySelectorAll("[data-open-resource-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const resourceId = button.dataset.openResourceId;
+      const targetResource = resources.find((item) => String(item.id) === String(resourceId));
 
-      if (url) {
-        window.open(url, "_blank", "noopener,noreferrer");
+      button.disabled = true;
+      const initialLabel = button.textContent;
+      button.textContent = "Ouverture...";
+
+      try {
+        const openUrl = await createOpenDocumentUrl(targetResource);
+
+        if (!openUrl) {
+          throw new Error("Aucun lien exploitable pour ce document.");
+        }
+
+        window.open(openUrl, "_blank", "noopener,noreferrer");
+      } catch (error) {
+        console.error(error);
+        window.alert("Ouverture impossible pour ce document.");
+      } finally {
+        button.disabled = false;
+        button.textContent = initialLabel;
       }
     });
   });
@@ -410,12 +433,12 @@ export async function renderFavoritesView(container) {
 
   try {
     const resources = await fetchResources();
-    const favoriteIds = getStoredFavoriteIds();
-    const favoriteResources = resources.filter((resource) => favoriteIds.includes(String(resource.id)));
 
     const render = () => {
       const refreshedFavorites = getStoredFavoriteIds();
-      const visibleResources = resources.filter((resource) => refreshedFavorites.includes(String(resource.id)));
+      const visibleResources = resources
+        .filter((resource) => refreshedFavorites.includes(String(resource.id)))
+        .sort(compareBySortOrder);
 
       container.innerHTML = `
         <div class="favorites-view stack">
@@ -433,7 +456,7 @@ export async function renderFavoritesView(container) {
         </div>
       `;
 
-      attachSharedDocumentEvents(container, render);
+      attachSharedDocumentEvents(container, render, resources);
     };
 
     render();
@@ -483,7 +506,9 @@ export async function renderCategoriesView(container, options = {}) {
       const selectedSubcategory = normalized.selectedSubcategory;
 
       const activeDocumentCategoryId = selectedSubcategory?.id ?? selectedRoot?.id ?? null;
-      const documents = resources.filter((resource) => String(resource.category_id) === String(activeDocumentCategoryId));
+      const documents = resources
+        .filter((resource) => String(resource.category_id) === String(activeDocumentCategoryId))
+        .sort(compareBySortOrder);
       const breadcrumb = buildBreadcrumb(selectedRoot, selectedSubcategory);
       const searchResults = buildSearchResults(searchQuery, categories, resources, rootCategories, categoryMap);
       const documentsTitle = selectedSubcategory
@@ -620,7 +645,7 @@ export async function renderCategoriesView(container, options = {}) {
         });
       });
 
-      attachSharedDocumentEvents(container, render);
+      attachSharedDocumentEvents(container, render, resources);
     }
 
     render();

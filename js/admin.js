@@ -1,4 +1,30 @@
 import { supabaseClient } from "./config.js";
+import {
+  deleteFileFromStorage,
+  deleteResource,
+  insertResource,
+  updateResource,
+  uploadFileToStorage
+} from "./uploads.js";
+
+function normalizeText(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function compareBySortOrder(a, b) {
+  const aOrder = Number.isFinite(Number(a?.sort_order)) ? Number(a.sort_order) : Number.MAX_SAFE_INTEGER;
+  const bOrder = Number.isFinite(Number(b?.sort_order)) ? Number(b.sort_order) : Number.MAX_SAFE_INTEGER;
+
+  if (aOrder !== bOrder) {
+    return aOrder - bOrder;
+  }
+
+  return normalizeText(a?.name ?? a?.title).localeCompare(normalizeText(b?.name ?? b?.title));
+}
 
 async function fetchProfiles() {
   const { data, error } = await supabaseClient
@@ -16,14 +42,38 @@ async function fetchProfiles() {
 async function fetchCategories() {
   const { data, error } = await supabaseClient
     .from("categories")
-    .select("id, name, parent_id")
-    .order("name", { ascending: true });
+    .select("*");
 
   if (error) {
     throw error;
   }
 
-  return data ?? [];
+  return (data ?? []).sort(compareBySortOrder);
+}
+
+async function fetchResources() {
+  const { data, error } = await supabaseClient
+    .from("resources")
+    .select("*");
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).sort(compareBySortOrder);
+}
+
+async function fetchCurrentUser() {
+  const {
+    data: { user },
+    error
+  } = await supabaseClient.auth.getUser();
+
+  if (error) {
+    throw error;
+  }
+
+  return user;
 }
 
 async function approveUser(profileId) {
@@ -31,6 +81,46 @@ async function approveUser(profileId) {
     .from("profiles")
     .update({ status: "approved" })
     .eq("id", profileId);
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function createCategory(payload) {
+  const { data, error } = await supabaseClient
+    .from("categories")
+    .insert(payload)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+async function updateCategory(categoryId, payload) {
+  const { data, error } = await supabaseClient
+    .from("categories")
+    .update(payload)
+    .eq("id", categoryId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+async function removeCategory(categoryId) {
+  const { error } = await supabaseClient
+    .from("categories")
+    .delete()
+    .eq("id", categoryId);
 
   if (error) {
     throw error;
@@ -49,18 +139,263 @@ function getRoleClass(role) {
 
 function formatName(profile) {
   const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim();
-  return fullName || "Nom non renseigné";
+  return fullName || "Nom non renseigne";
+}
+
+function getChildren(categories, parentId) {
+  return categories
+    .filter((category) => String(category.parent_id) === String(parentId))
+    .sort(compareBySortOrder);
+}
+
+function getRootCategories(categories) {
+  return categories
+    .filter((category) => category.parent_id == null)
+    .sort(compareBySortOrder);
+}
+
+function getResourcesForCategory(resources, categoryId) {
+  return resources
+    .filter((resource) => String(resource.category_id) === String(categoryId))
+    .sort(compareBySortOrder);
+}
+
+function getNextSortOrder(items) {
+  if (!items.length) {
+    return 1;
+  }
+
+  return Math.max(...items.map((item) => Number(item.sort_order) || 0)) + 1;
+}
+
+function getUploadFeedbackMarkup(feedback) {
+  if (!feedback?.message) {
+    return "";
+  }
+
+  return `<p class="feedback ${feedback.type}">${feedback.message}</p>`;
+}
+
+function buildParentCategoryOptions(categories, selectedId = "") {
+  return `
+    <option value="">Categorie principale</option>
+    ${getRootCategories(categories)
+      .map(
+        (category) => `
+          <option value="${category.id}" ${String(category.id) === String(selectedId) ? "selected" : ""}>
+            ${category.name}
+          </option>
+        `
+      )
+      .join("")}
+  `;
+}
+
+function buildCategoryTargetOptions(categories, selectedId = "") {
+  return `
+    <option value="">Selectionner une categorie</option>
+    ${getRootCategories(categories)
+      .map((rootCategory) => {
+        const children = getChildren(categories, rootCategory.id);
+
+        return `
+          <optgroup label="${rootCategory.name}">
+            <option value="${rootCategory.id}" ${String(rootCategory.id) === String(selectedId) ? "selected" : ""}>
+              ${rootCategory.name}
+            </option>
+            ${children
+              .map(
+                (child) => `
+                  <option value="${child.id}" ${String(child.id) === String(selectedId) ? "selected" : ""}>
+                    ${rootCategory.name} > ${child.name}
+                  </option>
+                `
+              )
+              .join("")}
+          </optgroup>
+        `;
+      })
+      .join("")}
+  `;
+}
+async function swapCategoryOrder(categories, categoryId, direction) {
+  const target = categories.find((category) => String(category.id) === String(categoryId));
+
+  if (!target) {
+    return;
+  }
+
+  const siblings = categories
+    .filter((category) => String(category.parent_id ?? "") === String(target.parent_id ?? ""))
+    .sort(compareBySortOrder);
+
+  const index = siblings.findIndex((category) => String(category.id) === String(categoryId));
+  const otherIndex = direction === "up" ? index - 1 : index + 1;
+  const other = siblings[otherIndex];
+
+  if (!other) {
+    return;
+  }
+
+  const targetOrder = Number(target.sort_order) || index + 1;
+  const otherOrder = Number(other.sort_order) || otherIndex + 1;
+
+  await Promise.all([
+    updateCategory(target.id, { sort_order: otherOrder }),
+    updateCategory(other.id, { sort_order: targetOrder })
+  ]);
+}
+
+async function swapResourceOrder(resources, resourceId, direction) {
+  const target = resources.find((resource) => String(resource.id) === String(resourceId));
+
+  if (!target) {
+    return;
+  }
+
+  const siblings = resources
+    .filter((resource) => String(resource.category_id) === String(target.category_id))
+    .sort(compareBySortOrder);
+
+  const index = siblings.findIndex((resource) => String(resource.id) === String(resourceId));
+  const otherIndex = direction === "up" ? index - 1 : index + 1;
+  const other = siblings[otherIndex];
+
+  if (!other) {
+    return;
+  }
+
+  const targetOrder = Number(target.sort_order) || index + 1;
+  const otherOrder = Number(other.sort_order) || otherIndex + 1;
+
+  await Promise.all([
+    updateResource(target.id, { sort_order: otherOrder }),
+    updateResource(other.id, { sort_order: targetOrder })
+  ]);
+}
+
+function buildCategoryTreeMarkup(categories, resources) {
+  const roots = getRootCategories(categories);
+
+  return roots
+    .map((rootCategory) => {
+      const children = getChildren(categories, rootCategory.id);
+      const rootDocuments = getResourcesForCategory(resources, rootCategory.id);
+
+      return `
+        <article class="admin-entity-card">
+          <div class="admin-entity-header">
+            <div>
+              <p class="section-kicker">Categorie</p>
+              <h5>${rootCategory.name}</h5>
+              <p class="muted">
+                ${children.length} sous-categorie(s) - ${rootDocuments.length} document(s) direct(s)
+              </p>
+            </div>
+
+            <div class="inline-actions">
+              <button class="button button-secondary button-small" type="button" data-category-move-up="${rootCategory.id}">↑ Monter</button>
+              <button class="button button-secondary button-small" type="button" data-category-move-down="${rootCategory.id}">↓ Descendre</button>
+              <button class="button button-ghost button-small" type="button" data-category-edit="${rootCategory.id}">Modifier</button>
+              <button class="button button-secondary button-small" type="button" data-category-delete="${rootCategory.id}">Supprimer</button>
+            </div>
+          </div>
+
+          ${
+            children.length
+              ? `
+                <div class="admin-subtree">
+                  ${children
+                    .map((child) => {
+                      const childDocuments = getResourcesForCategory(resources, child.id);
+
+                      return `
+                        <div class="admin-subentity-card">
+                          <div class="admin-subentity-header">
+                            <div>
+                              <strong>${child.name}</strong>
+                              <p class="muted">${childDocuments.length} document(s)</p>
+                            </div>
+
+                            <div class="inline-actions">
+                              <button class="button button-secondary button-small" type="button" data-category-move-up="${child.id}">↑</button>
+                              <button class="button button-secondary button-small" type="button" data-category-move-down="${child.id}">↓</button>
+                              <button class="button button-ghost button-small" type="button" data-category-edit="${child.id}">Modifier</button>
+                              <button class="button button-secondary button-small" type="button" data-category-delete="${child.id}">Supprimer</button>
+                            </div>
+                          </div>
+
+                          ${
+                            childDocuments.length
+                              ? `
+                                <div class="admin-documents-list">
+                                  ${childDocuments
+                                    .map(
+                                      (resource) => `
+                                        <div class="admin-document-row">
+                                          <div>
+                                            <strong>${resource.title}</strong>
+                                            <p class="muted">${resource.type || "document"} - ordre ${resource.sort_order ?? "-"}</p>
+                                          </div>
+
+                                          <div class="inline-actions">
+                                            <button class="button button-secondary button-small" type="button" data-document-move-up="${resource.id}">↑</button>
+                                            <button class="button button-secondary button-small" type="button" data-document-move-down="${resource.id}">↓</button>
+                                            <button class="button button-ghost button-small" type="button" data-document-edit="${resource.id}">Modifier</button>
+                                            <button class="button button-secondary button-small" type="button" data-document-delete="${resource.id}">Supprimer</button>
+                                          </div>
+                                        </div>
+                                      `
+                                    )
+                                    .join("")}
+                                </div>
+                              `
+                              : '<p class="empty-state">Aucun document dans cette sous-categorie.</p>'
+                          }
+                        </div>
+                      `;
+                    })
+                    .join("")}
+                </div>
+              `
+              : '<p class="empty-state">Aucune sous-categorie pour cette categorie.</p>'
+          }
+        </article>
+      `;
+    })
+    .join("");
 }
 
 export async function renderAdminView(container) {
   container.innerHTML = '<p class="muted">Chargement de l\'administration...</p>';
 
   try {
-    let [profiles, categories] = await Promise.all([fetchProfiles(), fetchCategories()]);
+    let [profiles, categories, resources, currentUser] = await Promise.all([
+      fetchProfiles(),
+      fetchCategories(),
+      fetchResources(),
+      fetchCurrentUser()
+    ]);
+
     let feedback = "";
     let feedbackClass = "is-success";
+    let categoryFeedback = { message: "", type: "is-success" };
+    let documentFeedback = { message: "", type: "is-success" };
+    let editingCategoryId = null;
+    let editingDocumentId = null;
+
+    const refreshData = async () => {
+      [profiles, categories, resources] = await Promise.all([
+        fetchProfiles(),
+        fetchCategories(),
+        fetchResources()
+      ]);
+    };
 
     const render = () => {
+      const editingCategory = categories.find((category) => String(category.id) === String(editingCategoryId)) ?? null;
+      const editingDocument = resources.find((resource) => String(resource.id) === String(editingDocumentId)) ?? null;
+
       container.innerHTML = `
         <div class="stack">
           <div class="admin-toolbar">
@@ -69,16 +404,112 @@ export async function renderAdminView(container) {
               <strong>${profiles.length}</strong>
             </div>
             <div class="info-card">
-              <p class="inline-label">Catégories</p>
+              <p class="inline-label">Categories</p>
               <strong>${categories.length}</strong>
+            </div>
+            <div class="info-card">
+              <p class="inline-label">Documents</p>
+              <strong>${resources.length}</strong>
             </div>
             ${feedback ? `<p class="feedback ${feedbackClass}">${feedback}</p>` : ""}
           </div>
 
+          <div class="admin-grid admin-grid-wide">
+            <article class="admin-card admin-upload-card">
+              <p class="section-kicker">${editingCategory ? "Modifier" : "Creer"}</p>
+              <h4>${editingCategory ? "Modifier une categorie / sous-categorie" : "Ajouter une categorie / sous-categorie"}</h4>
+              <form id="categoryForm" class="stack admin-upload-form">
+                <div class="admin-form-grid">
+                  <label class="field">
+                    <span>Nom</span>
+                    <input name="name" type="text" value="${editingCategory?.name ?? ""}" required>
+                  </label>
+
+                  <label class="field">
+                    <span>Categorie parente</span>
+                    <select name="parent_id" class="search-input">
+                      ${buildParentCategoryOptions(
+                        categories.filter((category) => String(category.id) !== String(editingCategoryId)),
+                        editingCategory?.parent_id ?? ""
+                      )}
+                    </select>
+                  </label>
+                </div>
+
+                <div class="admin-form-actions">
+                  <button class="button button-primary" type="submit">${editingCategory ? "Enregistrer" : "Creer"}</button>
+                  ${editingCategory ? '<button id="cancelCategoryEdit" class="button button-secondary" type="button">Annuler</button>' : ""}
+                  ${getUploadFeedbackMarkup(categoryFeedback)}
+                </div>
+              </form>
+            </article>
+
+            <article class="admin-card admin-upload-card">
+              <p class="section-kicker">${editingDocument ? "Modifier" : "Ajouter"}</p>
+              <h4>${editingDocument ? "Modifier un document" : "Uploader un document"}</h4>
+              <p class="muted">Bucket prive + signed URL. Le champ fichier reste optionnel en mode edition si vous ne remplacez pas le fichier.</p>
+
+              <form id="resourceUploadForm" class="stack admin-upload-form">
+                <div class="admin-form-grid">
+                  <label class="field">
+                    <span>Titre</span>
+                    <input name="title" type="text" value="${editingDocument?.title ?? ""}" required>
+                  </label>
+
+                  <label class="field">
+                    <span>Type</span>
+                    <select id="resourceTypeSelect" name="type" class="search-input" required>
+                      ${["pdf", "word", "excel", "image", "link"].map((type) => `
+                        <option value="${type}" ${editingDocument?.type === type ? "selected" : ""}>${type}</option>
+                      `).join("")}
+                    </select>
+                  </label>
+                </div>
+
+                <label class="field">
+                  <span>Description</span>
+                  <textarea name="description" class="search-input admin-textarea" rows="4" placeholder="Description optionnelle du document">${editingDocument?.description ?? ""}</textarea>
+                </label>
+
+                <div class="admin-form-grid">
+                  <label class="field">
+                    <span>Categorie / sous-categorie</span>
+                    <select name="category_id" class="search-input" required>
+                      ${buildCategoryTargetOptions(categories, editingDocument?.category_id ?? "")}
+                    </select>
+                  </label>
+
+                  <label id="externalUrlField" class="field ${editingDocument?.type === "link" ? "" : "hidden"}">
+                    <span>Lien externe</span>
+                    <input name="external_url" type="url" class="search-input" placeholder="https://..." value="${editingDocument?.external_url ?? ""}">
+                  </label>
+                </div>
+
+                <label id="fileField" class="field ${editingDocument?.type === "link" ? "hidden" : ""}">
+                  <span>Fichier ${editingDocument ? "(laisser vide pour conserver l'existant)" : ""}</span>
+                  <input name="file" type="file" class="search-input">
+                </label>
+
+                <div class="admin-form-actions">
+                  <button id="uploadSubmitBtn" class="button button-primary" type="submit">${editingDocument ? "Enregistrer" : "Uploader"}</button>
+                  ${editingDocument ? '<button id="cancelDocumentEdit" class="button button-secondary" type="button">Annuler</button>' : ""}
+                  ${getUploadFeedbackMarkup(documentFeedback)}
+                </div>
+              </form>
+            </article>
+          </div>
           <div class="admin-grid">
             <article class="admin-card">
+              <p class="section-kicker">Contenu</p>
+              <h4>Categories, sous-categories et documents</h4>
+              <div class="stack">
+                ${buildCategoryTreeMarkup(categories, resources) || '<p class="empty-state">Aucune categorie enregistree.</p>'}
+              </div>
+            </article>
+
+            <article class="admin-card">
               <p class="section-kicker">Utilisateurs</p>
-              <h4>Gestion des accès</h4>
+              <h4>Gestion des acces</h4>
               <div class="table-like">
                 ${profiles
                   .map(
@@ -101,29 +532,45 @@ export async function renderAdminView(container) {
                   .join("")}
               </div>
             </article>
-
-            <article class="admin-card">
-              <p class="section-kicker">Structure</p>
-              <h4>Catégories existantes</h4>
-              <div class="table-like">
-                ${categories
-                  .map(
-                    (category) => `
-                      <div class="table-row">
-                        <div>
-                          <strong>${category.name}</strong>
-                          <p>ID : ${category.id}</p>
-                          <p>Parent : ${category.parent_id ?? "Catégorie racine"}</p>
-                        </div>
-                      </div>
-                    `
-                  )
-                  .join("")}
-              </div>
-            </article>
           </div>
         </div>
       `;
+
+      const typeSelect = container.querySelector("#resourceTypeSelect");
+      const externalUrlField = container.querySelector("#externalUrlField");
+      const fileField = container.querySelector("#fileField");
+      const externalUrlInput = container.querySelector('input[name="external_url"]');
+      const fileInput = container.querySelector('input[name="file"]');
+
+      function syncDocumentFields() {
+        const isLinkType = typeSelect?.value === "link";
+
+        externalUrlField?.classList.toggle("hidden", !isLinkType);
+        fileField?.classList.toggle("hidden", isLinkType);
+
+        if (externalUrlInput) {
+          externalUrlInput.required = isLinkType;
+        }
+
+        if (fileInput) {
+          fileInput.required = !isLinkType && !editingDocument;
+        }
+      }
+
+      typeSelect?.addEventListener("change", syncDocumentFields);
+      syncDocumentFields();
+
+      container.querySelector("#cancelCategoryEdit")?.addEventListener("click", () => {
+        editingCategoryId = null;
+        categoryFeedback = { message: "", type: "is-success" };
+        render();
+      });
+
+      container.querySelector("#cancelDocumentEdit")?.addEventListener("click", () => {
+        editingDocumentId = null;
+        documentFeedback = { message: "", type: "is-success" };
+        render();
+      });
 
       container.querySelectorAll("[data-approve-id]").forEach((button) => {
         button.addEventListener("click", async () => {
@@ -133,17 +580,382 @@ export async function renderAdminView(container) {
           try {
             await approveUser(profileId);
             profiles = await fetchProfiles();
-            categories = await fetchCategories();
-            feedback = "Utilisateur approuvé avec succès.";
+            feedback = "Utilisateur approuve avec succes.";
             feedbackClass = "is-success";
           } catch (error) {
             console.error(error);
-            feedback = "Approbation impossible. Vérifiez vos policies Supabase ou vos droits admin.";
+            feedback = "Approbation impossible. Verifiez vos policies Supabase ou vos droits admin.";
             feedbackClass = "is-error";
           }
 
           render();
         });
+      });
+
+      container.querySelectorAll("[data-category-edit]").forEach((button) => {
+        button.addEventListener("click", () => {
+          editingCategoryId = button.dataset.categoryEdit;
+          categoryFeedback = { message: "", type: "is-success" };
+          render();
+        });
+      });
+
+      container.querySelectorAll("[data-category-delete]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const categoryId = button.dataset.categoryDelete;
+          const children = getChildren(categories, categoryId);
+          const linkedDocuments = getResourcesForCategory(resources, categoryId);
+
+          if (children.length || linkedDocuments.length) {
+            categoryFeedback = {
+              message: "Suppression bloquee : cette categorie contient des sous-categories ou des documents.",
+              type: "is-warning"
+            };
+            render();
+            return;
+          }
+
+          if (!window.confirm("Confirmer la suppression de cette categorie ?")) {
+            return;
+          }
+
+          try {
+            await removeCategory(categoryId);
+            if (String(editingCategoryId) === String(categoryId)) {
+              editingCategoryId = null;
+            }
+            await refreshData();
+            categoryFeedback = {
+              message: "Categorie supprimee.",
+              type: "is-success"
+            };
+          } catch (error) {
+            console.error(error);
+            categoryFeedback = {
+              message: "Suppression impossible pour cette categorie.",
+              type: "is-error"
+            };
+          }
+
+          render();
+        });
+      });
+
+      container.querySelectorAll("[data-category-move-up]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          try {
+            await swapCategoryOrder(categories, button.dataset.categoryMoveUp, "up");
+            await refreshData();
+          } catch (error) {
+            console.error(error);
+            categoryFeedback = {
+              message: "Reorganisation impossible.",
+              type: "is-error"
+            };
+          }
+
+          render();
+        });
+      });
+
+      container.querySelectorAll("[data-category-move-down]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          try {
+            await swapCategoryOrder(categories, button.dataset.categoryMoveDown, "down");
+            await refreshData();
+          } catch (error) {
+            console.error(error);
+            categoryFeedback = {
+              message: "Reorganisation impossible.",
+              type: "is-error"
+            };
+          }
+
+          render();
+        });
+      });
+      container.querySelectorAll("[data-document-edit]").forEach((button) => {
+        button.addEventListener("click", () => {
+          editingDocumentId = button.dataset.documentEdit;
+          documentFeedback = { message: "", type: "is-success" };
+          render();
+        });
+      });
+
+      container.querySelectorAll("[data-document-delete]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const resourceId = button.dataset.documentDelete;
+          const targetResource = resources.find((resource) => String(resource.id) === String(resourceId));
+
+          if (!targetResource) {
+            return;
+          }
+
+          if (!window.confirm("Confirmer la suppression de ce document ?")) {
+            return;
+          }
+
+          try {
+            await deleteResource(resourceId);
+
+            if (targetResource.file_path) {
+              await deleteFileFromStorage(targetResource.file_path);
+            }
+
+            if (String(editingDocumentId) === String(resourceId)) {
+              editingDocumentId = null;
+            }
+
+            await refreshData();
+            documentFeedback = {
+              message: "Document supprime.",
+              type: "is-success"
+            };
+          } catch (error) {
+            console.error(error);
+            documentFeedback = {
+              message: "Suppression impossible pour ce document.",
+              type: "is-error"
+            };
+          }
+
+          render();
+        });
+      });
+
+      container.querySelectorAll("[data-document-move-up]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          try {
+            await swapResourceOrder(resources, button.dataset.documentMoveUp, "up");
+            await refreshData();
+          } catch (error) {
+            console.error(error);
+            documentFeedback = {
+              message: "Reorganisation impossible pour le document.",
+              type: "is-error"
+            };
+          }
+
+          render();
+        });
+      });
+
+      container.querySelectorAll("[data-document-move-down]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          try {
+            await swapResourceOrder(resources, button.dataset.documentMoveDown, "down");
+            await refreshData();
+          } catch (error) {
+            console.error(error);
+            documentFeedback = {
+              message: "Reorganisation impossible pour le document.",
+              type: "is-error"
+            };
+          }
+
+          render();
+        });
+      });
+
+      container.querySelector("#categoryForm")?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const formData = new FormData(event.currentTarget);
+        const name = String(formData.get("name") ?? "").trim();
+        const parentId = String(formData.get("parent_id") ?? "").trim() || null;
+
+        if (!name) {
+          categoryFeedback = {
+            message: "Le nom de la categorie est obligatoire.",
+            type: "is-warning"
+          };
+          render();
+          return;
+        }
+
+        try {
+          if (editingCategory) {
+            const oldParentId = editingCategory.parent_id ?? null;
+            const siblings = categories.filter(
+              (category) =>
+                String(category.parent_id ?? "") === String(parentId ?? "") &&
+                String(category.id) !== String(editingCategory.id)
+            );
+
+            await updateCategory(editingCategory.id, {
+              name,
+              parent_id: parentId,
+              sort_order:
+                String(oldParentId ?? "") === String(parentId ?? "")
+                  ? editingCategory.sort_order
+                  : getNextSortOrder(siblings)
+            });
+
+            categoryFeedback = {
+              message: "Categorie mise a jour avec succes.",
+              type: "is-success"
+            };
+            editingCategoryId = null;
+          } else {
+            const siblings = categories.filter(
+              (category) => String(category.parent_id ?? "") === String(parentId ?? "")
+            );
+
+            await createCategory({
+              name,
+              parent_id: parentId,
+              sort_order: getNextSortOrder(siblings)
+            });
+
+            categoryFeedback = {
+              message: "Categorie creee avec succes.",
+              type: "is-success"
+            };
+          }
+
+          await refreshData();
+        } catch (error) {
+          console.error(error);
+          categoryFeedback = {
+            message: "Enregistrement impossible pour cette categorie.",
+            type: "is-error"
+          };
+        }
+
+        render();
+      });
+      container.querySelector("#resourceUploadForm")?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const formData = new FormData(event.currentTarget);
+        const title = String(formData.get("title") ?? "").trim();
+        const description = String(formData.get("description") ?? "").trim();
+        const type = String(formData.get("type") ?? "").trim();
+        const categoryId = String(formData.get("category_id") ?? "").trim();
+        const externalUrl = String(formData.get("external_url") ?? "").trim();
+        const file = formData.get("file");
+        const isLinkType = type === "link";
+
+        if (!title || !type || !categoryId) {
+          documentFeedback = {
+            message: "Titre, type et categorie sont obligatoires.",
+            type: "is-warning"
+          };
+          render();
+          return;
+        }
+
+        if (isLinkType && !externalUrl) {
+          documentFeedback = {
+            message: "Veuillez renseigner un lien externe pour le type link.",
+            type: "is-warning"
+          };
+          render();
+          return;
+        }
+
+        if (!isLinkType && !editingDocument && !(file instanceof File && file.name)) {
+          documentFeedback = {
+            message: "Veuillez selectionner un fichier.",
+            type: "is-warning"
+          };
+          render();
+          return;
+        }
+
+        try {
+          const siblings = resources.filter(
+            (resource) =>
+              String(resource.category_id) === String(categoryId) &&
+              String(resource.id) !== String(editingDocument?.id ?? "")
+          );
+          const previousFilePath = editingDocument?.file_path ?? null;
+          let uploadedReplacementPath = null;
+
+          let payload = {
+            title,
+            description: description || null,
+            type,
+            category_id: categoryId,
+            external_url: isLinkType ? externalUrl : null
+          };
+
+          payload.sort_order = editingDocument && String(editingDocument.category_id) === String(categoryId)
+            ? editingDocument.sort_order
+            : getNextSortOrder(siblings);
+
+          if (isLinkType) {
+            payload = {
+              ...payload,
+              file_path: null,
+              file_name: null,
+              mime_type: null,
+              file_size: null
+            };
+          } else if (file instanceof File && file.name) {
+            if (file.size > 20 * 1024 * 1024) {
+              throw new Error("Le fichier depasse 20 Mo.");
+            }
+
+            const storageData = await uploadFileToStorage({
+              file,
+              categoryId,
+              userId: currentUser.id
+            });
+            uploadedReplacementPath = storageData.filePath;
+
+            payload = {
+              ...payload,
+              file_path: storageData.filePath,
+              file_name: storageData.fileName,
+              mime_type: storageData.mimeType,
+              file_size: storageData.fileSize,
+              external_url: null
+            };
+          } else if (editingDocument) {
+            payload = {
+              ...payload,
+              file_path: editingDocument.file_path,
+              file_name: editingDocument.file_name,
+              mime_type: editingDocument.mime_type,
+              file_size: editingDocument.file_size
+            };
+          }
+
+          if (editingDocument) {
+            await updateResource(editingDocument.id, payload);
+
+            if (isLinkType && previousFilePath) {
+              await deleteFileFromStorage(previousFilePath);
+            }
+
+            if (!isLinkType && uploadedReplacementPath && previousFilePath && previousFilePath !== uploadedReplacementPath) {
+              await deleteFileFromStorage(previousFilePath);
+            }
+
+            documentFeedback = {
+              message: "Document mis a jour avec succes.",
+              type: "is-success"
+            };
+            editingDocumentId = null;
+          } else {
+            await insertResource(payload);
+            documentFeedback = {
+              message: "Document ajoute avec succes.",
+              type: "is-success"
+            };
+          }
+
+          await refreshData();
+        } catch (error) {
+          console.error(error);
+          documentFeedback = {
+            message: `Operation impossible : ${error.message ?? "erreur inconnue"}`,
+            type: "is-error"
+          };
+        }
+
+        render();
       });
     };
 

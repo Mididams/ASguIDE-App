@@ -7,3 +7,5 @@ if (!window.supabase) {
 
 export const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 export const APP_NAME = "ASguIDE";
+export const STORAGE_BUCKET = "documents";
+export const SIGNED_URL_TTL_SECONDS = 60 * 10;
