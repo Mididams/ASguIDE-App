@@ -477,12 +477,7 @@ export async function renderCategoriesView(container, options = {}) {
     const categoryMap = buildCategoryMap(categories);
     const rootCategories = getRootCategoriesForType(categories, categoryType);
 
-    if (!rootCategories.length) {
-      container.innerHTML = `<p class="empty-state">${emptyMessage}</p>`;
-      return;
-    }
-
-    let selectedRootId = rootCategories[0].id;
+    let selectedRootId = rootCategories[0]?.id ?? null;
     let selectedSubcategoryId = null;
     let searchQuery = "";
 
@@ -502,11 +497,12 @@ export async function renderCategoriesView(container, options = {}) {
         .sort(compareBySortOrder);
       const breadcrumb = buildBreadcrumb(selectedRoot, selectedSubcategory);
       const searchResults = buildSearchResults(searchQuery, categories, resources, rootCategories, categoryMap);
+      const hasRootCategories = rootCategories.length > 0;
       const documentsTitle = selectedSubcategory
         ? `Documents de ${selectedSubcategory.name}`
         : selectedRoot
           ? `Documents de ${selectedRoot.name}`
-          : "Documents";
+          : "Aucun document selectionne";
 
       container.innerHTML = `
         <div class="categories-v2">
@@ -556,7 +552,7 @@ export async function renderCategoriesView(container, options = {}) {
               </div>
               ${renderSelectableList(rootCategories, selectedRootId, {
                 buttonAttr: "data-root-id",
-                emptyMessage: "Aucune categorie racine disponible.",
+                emptyMessage,
                 helperText: (category) => {
                   const subcategoryCount = getDirectChildren(categories, category.id).length;
                   const documentCount = countDocumentsForCategory(resources, category.id);
@@ -579,8 +575,8 @@ export async function renderCategoriesView(container, options = {}) {
                     })
                   : `
                     <div class="empty-panel">
-                      <p class="empty-state">Aucune sous-categorie pour cette categorie.</p>
-                      <p class="muted">Les documents affiches a droite sont donc ceux lies directement a la categorie selectionnee.</p>
+                      <p class="empty-state">${hasRootCategories ? "Aucune sous-categorie pour cette categorie." : "Aucune sous-categorie disponible."}</p>
+                      <p class="muted">${hasRootCategories ? "Les documents affiches a droite sont donc ceux lies directement a la categorie selectionnee." : "Selectionnez une categorie a l'etape 1 des qu'elle sera disponible."}</p>
                     </div>
                   `
               }
@@ -595,7 +591,9 @@ export async function renderCategoriesView(container, options = {}) {
               ${renderDocuments(
                 documents,
                 favoriteIds,
-                selectedSubcategory
+                !hasRootCategories
+                  ? "Aucun document disponible."
+                  : selectedSubcategory
                   ? "Aucun document n'est lie a cette sous-categorie."
                   : "Aucun document n'est lie a cette categorie."
               )}
