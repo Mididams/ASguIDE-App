@@ -7,6 +7,13 @@ import {
   uploadFileToStorage
 } from "./uploads.js";
 
+const CATEGORY_TYPE_OPTIONS = [
+  { value: "medicament", label: "Medicaments" },
+  { value: "protocole", label: "Protocoles et procedures" },
+  { value: "annuaire", label: "Annuaires" },
+  { value: "code", label: "Codes" }
+];
+
 function normalizeText(value) {
   return String(value ?? "")
     .normalize("NFD")
@@ -148,9 +155,14 @@ function getChildren(categories, parentId) {
     .sort(compareBySortOrder);
 }
 
-function getRootCategories(categories) {
+function getTypeLabel(type) {
+  return CATEGORY_TYPE_OPTIONS.find((option) => option.value === type)?.label ?? "Type non defini";
+}
+
+function getRootCategories(categories, type = null) {
   return categories
     .filter((category) => category.parent_id == null)
+    .filter((category) => (type ? category.type === type : true))
     .sort(compareBySortOrder);
 }
 
@@ -179,14 +191,28 @@ function getUploadFeedbackMarkup(feedback) {
 function buildParentCategoryOptions(categories, selectedId = "") {
   return `
     <option value="">Categorie principale</option>
-    ${getRootCategories(categories)
-      .map(
-        (category) => `
-          <option value="${category.id}" ${String(category.id) === String(selectedId) ? "selected" : ""}>
-            ${category.name}
-          </option>
-        `
-      )
+    ${CATEGORY_TYPE_OPTIONS
+      .map((typeOption) => {
+        const roots = getRootCategories(categories, typeOption.value);
+
+        if (!roots.length) {
+          return "";
+        }
+
+        return `
+          <optgroup label="${typeOption.label}">
+            ${roots
+              .map(
+                (category) => `
+                  <option value="${category.id}" ${String(category.id) === String(selectedId) ? "selected" : ""}>
+                    ${category.name}
+                  </option>
+                `
+              )
+              .join("")}
+          </optgroup>
+        `;
+      })
       .join("")}
   `;
 }
@@ -194,26 +220,36 @@ function buildParentCategoryOptions(categories, selectedId = "") {
 function buildCategoryTargetOptions(categories, selectedId = "") {
   return `
     <option value="">Selectionner une categorie</option>
-    ${getRootCategories(categories)
-      .map((rootCategory) => {
-        const children = getChildren(categories, rootCategory.id);
+    ${CATEGORY_TYPE_OPTIONS
+      .map((typeOption) => {
+        const roots = getRootCategories(categories, typeOption.value);
 
-        return `
-          <optgroup label="${rootCategory.name}">
-            <option value="${rootCategory.id}" ${String(rootCategory.id) === String(selectedId) ? "selected" : ""}>
-              ${rootCategory.name}
-            </option>
-            ${children
-              .map(
-                (child) => `
-                  <option value="${child.id}" ${String(child.id) === String(selectedId) ? "selected" : ""}>
-                    ${rootCategory.name} > ${child.name}
-                  </option>
-                `
-              )
-              .join("")}
-          </optgroup>
-        `;
+        if (!roots.length) {
+          return "";
+        }
+
+        return roots
+          .map((rootCategory) => {
+            const children = getChildren(categories, rootCategory.id);
+
+            return `
+              <optgroup label="${typeOption.label} - ${rootCategory.name}">
+                <option value="${rootCategory.id}" ${String(rootCategory.id) === String(selectedId) ? "selected" : ""}>
+                  ${rootCategory.name}
+                </option>
+                ${children
+                  .map(
+                    (child) => `
+                      <option value="${child.id}" ${String(child.id) === String(selectedId) ? "selected" : ""}>
+                        ${rootCategory.name} > ${child.name}
+                      </option>
+                    `
+                  )
+                  .join("")}
+              </optgroup>
+            `;
+          })
+          .join("");
       })
       .join("")}
   `;
@@ -275,92 +311,108 @@ async function swapResourceOrder(resources, resourceId, direction) {
 }
 
 function buildCategoryTreeMarkup(categories, resources) {
-  const roots = getRootCategories(categories);
-
-  return roots
-    .map((rootCategory) => {
-      const children = getChildren(categories, rootCategory.id);
-      const rootDocuments = getResourcesForCategory(resources, rootCategory.id);
+  return CATEGORY_TYPE_OPTIONS
+    .map((typeOption) => {
+      const roots = getRootCategories(categories, typeOption.value);
 
       return `
-        <article class="admin-entity-card">
-          <div class="admin-entity-header">
-            <div>
-              <p class="section-kicker">Categorie</p>
-              <h5>${rootCategory.name}</h5>
-              <p class="muted">
-                ${children.length} sous-categorie(s) - ${rootDocuments.length} document(s) direct(s)
-              </p>
-            </div>
-
-            <div class="inline-actions">
-              <button class="button button-secondary button-small" type="button" data-category-move-up="${rootCategory.id}">↑ Monter</button>
-              <button class="button button-secondary button-small" type="button" data-category-move-down="${rootCategory.id}">↓ Descendre</button>
-              <button class="button button-ghost button-small" type="button" data-category-edit="${rootCategory.id}">Modifier</button>
-              <button class="button button-secondary button-small" type="button" data-category-delete="${rootCategory.id}">Supprimer</button>
-            </div>
+        <section class="stack">
+          <div class="admin-type-heading">
+            <p class="section-kicker">Type</p>
+            <h5>${typeOption.label}</h5>
           </div>
-
           ${
-            children.length
-              ? `
-                <div class="admin-subtree">
-                  ${children
-                    .map((child) => {
-                      const childDocuments = getResourcesForCategory(resources, child.id);
+            roots.length
+              ? roots
+                  .map((rootCategory) => {
+                    const children = getChildren(categories, rootCategory.id);
+                    const rootDocuments = getResourcesForCategory(resources, rootCategory.id);
 
-                      return `
-                        <div class="admin-subentity-card">
-                          <div class="admin-subentity-header">
-                            <div>
-                              <strong>${child.name}</strong>
-                              <p class="muted">${childDocuments.length} document(s)</p>
-                            </div>
-
-                            <div class="inline-actions">
-                              <button class="button button-secondary button-small" type="button" data-category-move-up="${child.id}">↑</button>
-                              <button class="button button-secondary button-small" type="button" data-category-move-down="${child.id}">↓</button>
-                              <button class="button button-ghost button-small" type="button" data-category-edit="${child.id}">Modifier</button>
-                              <button class="button button-secondary button-small" type="button" data-category-delete="${child.id}">Supprimer</button>
-                            </div>
+                    return `
+                      <article class="admin-entity-card">
+                        <div class="admin-entity-header">
+                          <div>
+                            <p class="section-kicker">Categorie</p>
+                            <h5>${rootCategory.name}</h5>
+                            <p class="muted">
+                              ${children.length} sous-categorie(s) - ${rootDocuments.length} document(s) direct(s)
+                            </p>
                           </div>
 
-                          ${
-                            childDocuments.length
-                              ? `
-                                <div class="admin-documents-list">
-                                  ${childDocuments
-                                    .map(
-                                      (resource) => `
-                                        <div class="admin-document-row">
+                          <div class="inline-actions">
+                            <button class="button button-secondary button-small" type="button" data-category-move-up="${rootCategory.id}">↑ Monter</button>
+                            <button class="button button-secondary button-small" type="button" data-category-move-down="${rootCategory.id}">↓ Descendre</button>
+                            <button class="button button-ghost button-small" type="button" data-category-edit="${rootCategory.id}">Modifier</button>
+                            <button class="button button-secondary button-small" type="button" data-category-delete="${rootCategory.id}">Supprimer</button>
+                          </div>
+                        </div>
+
+                        ${
+                          children.length
+                            ? `
+                              <div class="admin-subtree">
+                                ${children
+                                  .map((child) => {
+                                    const childDocuments = getResourcesForCategory(resources, child.id);
+
+                                    return `
+                                      <div class="admin-subentity-card">
+                                        <div class="admin-subentity-header">
                                           <div>
-                                            <strong>${resource.title}</strong>
-                                            <p class="muted">${resource.type || "document"} - ordre ${resource.sort_order ?? "-"}</p>
+                                            <strong>${child.name}</strong>
+                                            <p class="muted">${childDocuments.length} document(s)</p>
                                           </div>
 
                                           <div class="inline-actions">
-                                            <button class="button button-secondary button-small" type="button" data-document-move-up="${resource.id}">↑</button>
-                                            <button class="button button-secondary button-small" type="button" data-document-move-down="${resource.id}">↓</button>
-                                            <button class="button button-ghost button-small" type="button" data-document-edit="${resource.id}">Modifier</button>
-                                            <button class="button button-secondary button-small" type="button" data-document-delete="${resource.id}">Supprimer</button>
+                                            <button class="button button-secondary button-small" type="button" data-category-move-up="${child.id}">↑</button>
+                                            <button class="button button-secondary button-small" type="button" data-category-move-down="${child.id}">↓</button>
+                                            <button class="button button-ghost button-small" type="button" data-category-edit="${child.id}">Modifier</button>
+                                            <button class="button button-secondary button-small" type="button" data-category-delete="${child.id}">Supprimer</button>
                                           </div>
                                         </div>
-                                      `
-                                    )
-                                    .join("")}
-                                </div>
-                              `
-                              : '<p class="empty-state">Aucun document dans cette sous-categorie.</p>'
-                          }
-                        </div>
-                      `;
-                    })
-                    .join("")}
-                </div>
-              `
-              : '<p class="empty-state">Aucune sous-categorie pour cette categorie.</p>'
+
+                                        ${
+                                          childDocuments.length
+                                            ? `
+                                              <div class="admin-documents-list">
+                                                ${childDocuments
+                                                  .map(
+                                                    (resource) => `
+                                                      <div class="admin-document-row">
+                                                        <div>
+                                                          <strong>${resource.title}</strong>
+                                                          <p class="muted">${resource.type || "document"} - ordre ${resource.sort_order ?? "-"}</p>
+                                                        </div>
+
+                                                        <div class="inline-actions">
+                                                          <button class="button button-secondary button-small" type="button" data-document-move-up="${resource.id}">↑</button>
+                                                          <button class="button button-secondary button-small" type="button" data-document-move-down="${resource.id}">↓</button>
+                                                          <button class="button button-ghost button-small" type="button" data-document-edit="${resource.id}">Modifier</button>
+                                                          <button class="button button-secondary button-small" type="button" data-document-delete="${resource.id}">Supprimer</button>
+                                                        </div>
+                                                      </div>
+                                                    `
+                                                  )
+                                                  .join("")}
+                                              </div>
+                                            `
+                                            : '<p class="empty-state">Aucun document dans cette sous-categorie.</p>'
+                                        }
+                                      </div>
+                                    `;
+                                  })
+                                  .join("")}
+                              </div>
+                            `
+                            : '<p class="empty-state">Aucune sous-categorie pour cette categorie.</p>'
+                        }
+                      </article>
+                    `;
+                  })
+                  .join("")
+              : '<p class="empty-state">Aucune categorie enregistree pour ce type.</p>'
           }
-        </article>
+        </section>
       `;
     })
     .join("");
@@ -395,6 +447,10 @@ export async function renderAdminView(container) {
     const render = () => {
       const editingCategory = categories.find((category) => String(category.id) === String(editingCategoryId)) ?? null;
       const editingDocument = resources.find((resource) => String(resource.id) === String(editingDocumentId)) ?? null;
+      const editingParent = editingCategory?.parent_id
+        ? categories.find((category) => String(category.id) === String(editingCategory.parent_id)) ?? null
+        : null;
+      const selectedCategoryType = editingParent?.type ?? editingCategory?.type ?? CATEGORY_TYPE_OPTIONS[0].value;
 
       container.innerHTML = `
         <div class="stack">
@@ -434,7 +490,24 @@ export async function renderAdminView(container) {
                       )}
                     </select>
                   </label>
+
+                  <label class="field">
+                    <span>Type</span>
+                    <select id="categoryTypeSelect" name="category_type" class="search-input">
+                      ${CATEGORY_TYPE_OPTIONS
+                        .map(
+                          (option) => `
+                            <option value="${option.value}" ${selectedCategoryType === option.value ? "selected" : ""}>
+                              ${option.label}
+                            </option>
+                          `
+                        )
+                        .join("")}
+                    </select>
+                  </label>
                 </div>
+
+                <p id="categoryTypeHint" class="muted"></p>
 
                 <div class="admin-form-actions">
                   <button class="button button-primary" type="submit">${editingCategory ? "Enregistrer" : "Creer"}</button>
@@ -537,10 +610,28 @@ export async function renderAdminView(container) {
       `;
 
       const typeSelect = container.querySelector("#resourceTypeSelect");
+      const categoryParentSelect = container.querySelector('select[name="parent_id"]');
+      const categoryTypeSelect = container.querySelector("#categoryTypeSelect");
+      const categoryTypeHint = container.querySelector("#categoryTypeHint");
       const externalUrlField = container.querySelector("#externalUrlField");
       const fileField = container.querySelector("#fileField");
       const externalUrlInput = container.querySelector('input[name="external_url"]');
       const fileInput = container.querySelector('input[name="file"]');
+
+      function syncCategoryTypeField() {
+        const parentId = String(categoryParentSelect?.value ?? "").trim();
+        const parentCategory = categories.find((category) => String(category.id) === parentId) ?? null;
+
+        if (parentCategory) {
+          categoryTypeSelect.value = parentCategory.type || categoryTypeSelect.value;
+          categoryTypeSelect.disabled = true;
+          categoryTypeHint.textContent = `Type herite du parent : ${getTypeLabel(parentCategory.type)}.`;
+          return;
+        }
+
+        categoryTypeSelect.disabled = false;
+        categoryTypeHint.textContent = "Le type choisi definira la famille de navigation de cette categorie racine.";
+      }
 
       function syncDocumentFields() {
         const isLinkType = typeSelect?.value === "link";
@@ -558,7 +649,9 @@ export async function renderAdminView(container) {
       }
 
       typeSelect?.addEventListener("change", syncDocumentFields);
+      categoryParentSelect?.addEventListener("change", syncCategoryTypeField);
       syncDocumentFields();
+      syncCategoryTypeField();
 
       container.querySelector("#cancelCategoryEdit")?.addEventListener("click", () => {
         editingCategoryId = null;
@@ -763,10 +856,15 @@ export async function renderAdminView(container) {
         const formData = new FormData(event.currentTarget);
         const name = String(formData.get("name") ?? "").trim();
         const parentId = String(formData.get("parent_id") ?? "").trim() || null;
+        const selectedType = String(formData.get("category_type") ?? "").trim();
+        const parentCategory = parentId
+          ? categories.find((category) => String(category.id) === String(parentId)) ?? null
+          : null;
+        const resolvedType = parentCategory?.type ?? selectedType;
 
-        if (!name) {
+        if (!name || !resolvedType) {
           categoryFeedback = {
-            message: "Le nom de la categorie est obligatoire.",
+            message: "Le nom et le type de la categorie sont obligatoires.",
             type: "is-warning"
           };
           render();
@@ -785,6 +883,7 @@ export async function renderAdminView(container) {
             await updateCategory(editingCategory.id, {
               name,
               parent_id: parentId,
+              type: resolvedType,
               sort_order:
                 String(oldParentId ?? "") === String(parentId ?? "")
                   ? editingCategory.sort_order
@@ -804,6 +903,7 @@ export async function renderAdminView(container) {
             await createCategory({
               name,
               parent_id: parentId,
+              type: resolvedType,
               sort_order: getNextSortOrder(siblings)
             });
 

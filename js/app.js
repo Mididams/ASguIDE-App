@@ -11,60 +11,65 @@ import {
   renderFavoritesView
 } from "./categories.js";
 import { renderCardsView } from "./cards.js";
-import { renderDirectoryView } from "./directory.js";
 import { renderAdminView } from "./admin.js";
 
 const state = {
   session: null,
   user: null,
   profile: null,
-  currentView: "home"
+  currentView: "medications"
 };
 
-const QUICK_LINKS = [
-  { id: "categories", title: "Catégories", description: "Accéder rapidement à l'arborescence médicale." },
-  { id: "directory", title: "Annuaires", description: "Retrouver les numéros utiles du service." },
-  { id: "cards", title: "Fiches médicaments", description: "Consulter les fiches thérapeutiques." },
-  { id: "favorites", title: "Favoris", description: "Ouvrir vos documents enregistrés localement." }
+const NAV_ITEMS = [
+  {
+    id: "medications",
+    label: "Médicaments",
+    kind: "generic",
+    categoryType: "medicament",
+    emptyMessage: "Aucune categorie medicament disponible."
+  },
+  {
+    id: "protocols",
+    label: "Protocoles et procédures",
+    kind: "generic",
+    categoryType: "protocole",
+    emptyMessage: "Aucune categorie protocole disponible."
+  },
+  {
+    id: "favorites",
+    label: "Favoris",
+    kind: "favorites"
+  },
+  {
+    id: "emergency-meds",
+    label: "Médocs d'urgence",
+    kind: "emergency"
+  },
+  {
+    id: "directories",
+    label: "Annuaires",
+    kind: "generic",
+    categoryType: "annuaire",
+    emptyMessage: "Aucune categorie annuaire disponible."
+  },
+  {
+    id: "codes",
+    label: "Codes",
+    kind: "generic",
+    categoryType: "code",
+    emptyMessage: "Aucune categorie code disponible."
+  }
 ];
 
-const viewConfig = {
-  home: {
-    label: "Accueil",
-    title: "Accueil",
-    description: "Vue d'ensemble du profil connecté et des modules disponibles."
-  },
-  categories: {
-    label: "Catégories",
-    title: "Catégories",
-    description: "Parcourez les catégories, sous-catégories et documents."
-  },
-  favorites: {
-    label: "Favoris",
-    title: "Favoris",
-    description: "Retrouvez rapidement vos documents enregistrés dans ce navigateur."
-  },
-  cards: {
-    label: "Fiches médicaments",
-    title: "Fiches médicaments",
-    description: "Consultez les fiches thérapeutiques stockées dans la table cards."
-  },
-  directory: {
-    label: "Annuaires",
-    title: "Annuaires",
-    description: "Retrouvez les numéros utiles et les UF du service."
-  },
-  codes: {
-    label: "Codes",
-    title: "Codes",
-    description: "Section privée prévue pour les codes utiles du service."
-  },
+const VIEW_CONFIG = {
   admin: {
+    id: "admin",
     label: "Administration",
-    title: "Administration",
-    description: "Outils réservés aux administrateurs."
+    kind: "admin"
   }
 };
+
+const navigationMap = new Map([...NAV_ITEMS, VIEW_CONFIG.admin].map((item) => [item.id, item]));
 
 const elements = {
   mainLayout: document.getElementById("mainLayout"),
@@ -93,7 +98,7 @@ function setFeedback(message = "", type = "is-error") {
 }
 
 function getNavigationItems() {
-  return ["home", "categories", "favorites", "cards", "directory", "codes"];
+  return NAV_ITEMS;
 }
 
 function updateUserStatus() {
@@ -119,12 +124,12 @@ function updateUserStatus() {
   `;
 }
 
-function getNavLabel(key) {
-  if (key === "favorites") {
-    return `${viewConfig[key].label} (${getFavoritesCount()})`;
+function getNavLabel(item) {
+  if (item.id === "favorites") {
+    return `${item.label} (${getFavoritesCount()})`;
   }
 
-  return viewConfig[key].label;
+  return item.label;
 }
 
 function navigateTo(view) {
@@ -137,15 +142,15 @@ function renderNavigation() {
   const items = getNavigationItems();
   const canAccessAdmin = state.currentView === "admin" && state.profile?.role === "admin";
 
-  if (!items.includes(state.currentView) && !canAccessAdmin) {
-    state.currentView = "home";
+  if (!navigationMap.has(state.currentView) || (state.currentView === "admin" && !canAccessAdmin)) {
+    state.currentView = items[0]?.id ?? "medications";
   }
 
   elements.mainNav.innerHTML = items
     .map(
-      (key) => `
-        <button class="nav-button ${state.currentView === key ? "is-active" : ""}" type="button" data-view="${key}">
-          ${getNavLabel(key)}
+      (item) => `
+        <button class="nav-button ${state.currentView === item.id ? "is-active" : ""}" type="button" data-view="${item.id}">
+          ${getNavLabel(item)}
         </button>
       `
     )
@@ -158,71 +163,39 @@ function renderNavigation() {
   });
 }
 
-function renderHomeView() {
-  const favoritesCount = getFavoritesCount();
-
-  elements.mainContent.innerHTML = `
-    <div class="stack">
-      <section class="quick-links-panel">
-        <div class="panel-header">
-          <div>
-            <p class="section-kicker">Accès rapide</p>
-            <h3>Raccourcis utiles</h3>
-          </div>
-        </div>
-
-        <div class="quick-links-grid">
-          ${QUICK_LINKS
-            .map(
-              (item) => `
-                <button class="quick-link-card" type="button" data-shortcut-view="${item.id}">
-                  <p class="card-tag">${item.title === "Favoris" ? `${favoritesCount} favori(s)` : "Raccourci"}</p>
-                  <strong>${item.title}</strong>
-                  <span>${item.description}</span>
-                </button>
-              `
-            )
-            .join("")}
-        </div>
-      </section>
-    </div>
-  `;
-
-  elements.mainContent.querySelectorAll("[data-shortcut-view]").forEach((button) => {
-    button.addEventListener("click", () => {
-      navigateTo(button.dataset.shortcutView);
-    });
-  });
+async function renderEmergencyView() {
+  await renderCardsView(elements.mainContent);
 }
 
 async function renderCurrentView() {
-  switch (state.currentView) {
-    case "categories":
-      await renderCategoriesView(elements.mainContent);
+  const config = navigationMap.get(state.currentView);
+
+  switch (config?.kind) {
+    case "generic":
+      await renderCategoriesView(elements.mainContent, {
+        categoryType: config.categoryType,
+        emptyMessage: config.emptyMessage
+      });
       break;
     case "favorites":
       await renderFavoritesView(elements.mainContent);
       break;
-    case "cards":
-      await renderCardsView(elements.mainContent);
-      break;
-    case "directory":
-      await renderDirectoryView(elements.mainContent);
-      break;
-    case "codes":
-      await renderCategoriesView(elements.mainContent, { rootCategoryName: "Codes" });
+    case "emergency":
+      await renderEmergencyView();
       break;
     case "admin":
       if (state.profile?.role === "admin") {
         await renderAdminView(elements.mainContent);
       } else {
-        state.currentView = "home";
+        state.currentView = NAV_ITEMS[0].id;
         renderNavigation();
-        renderHomeView();
+        await renderCurrentView();
       }
       break;
     default:
-      renderHomeView();
+      state.currentView = NAV_ITEMS[0].id;
+      renderNavigation();
+      await renderCurrentView();
       break;
   }
 }
@@ -306,7 +279,7 @@ async function handleLoginSubmit(event) {
 
 async function handleLogout() {
   await signOut();
-  state.currentView = "home";
+  state.currentView = NAV_ITEMS[0].id;
   setFeedback("");
   await refreshAuthState();
 }
@@ -323,7 +296,7 @@ function registerEvents() {
   window.addEventListener("favorites:changed", () => {
     renderNavigation();
 
-    if (state.currentView === "home" || state.currentView === "favorites") {
+    if (state.currentView === "favorites") {
       renderCurrentView();
     }
   });

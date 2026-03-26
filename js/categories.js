@@ -90,10 +90,8 @@ export function toggleFavoriteResource(resourceId) {
   return !exists;
 }
 
-function findCategoryByName(categories, targetName) {
-  return categories.find(
-    (category) => normalizeText(category.name) === normalizeText(targetName)
-  );
+function buildCategoryMap(categories) {
+  return new Map(categories.map((category) => [String(category.id), category]));
 }
 
 function getDirectChildren(categories, parentId) {
@@ -102,27 +100,25 @@ function getDirectChildren(categories, parentId) {
     .sort(compareBySortOrder);
 }
 
-function getRootCategories(categories, rootCategoryName) {
-  if (!rootCategoryName) {
-    return categories.filter((category) => category.parent_id == null).sort(compareBySortOrder);
-  }
-
-  const namedRoot = findCategoryByName(categories, rootCategoryName);
-
-  if (!namedRoot) {
-    return { namedRoot: null, rootCategories: [] };
-  }
-
-  const children = getDirectChildren(categories, namedRoot.id);
-
-  return {
-    namedRoot,
-    rootCategories: children.length ? children : [namedRoot]
-  };
+function getRootCategoriesForType(categories, categoryType) {
+  return categories
+    .filter((category) => category.parent_id == null)
+    .filter((category) => normalizeText(category.type) === normalizeText(categoryType))
+    .sort(compareBySortOrder);
 }
 
-function buildCategoryMap(categories) {
-  return new Map(categories.map((category) => [String(category.id), category]));
+function getFilteredCategories(categories, categoryType) {
+  return categories
+    .filter((category) => normalizeText(category.type) === normalizeText(categoryType))
+    .sort(compareBySortOrder);
+}
+
+function getFilteredResources(resources, filteredCategories) {
+  const allowedCategoryIds = new Set(filteredCategories.map((category) => String(category.id)));
+
+  return resources
+    .filter((resource) => allowedCategoryIds.has(String(resource.category_id)))
+    .sort(compareBySortOrder);
 }
 
 function getResourceTypeLabel(type) {
@@ -235,7 +231,7 @@ function renderDocuments(resources, favoriteIds, fallbackMessage) {
 
 function buildBreadcrumb(rootCategory, subcategory) {
   if (!rootCategory) {
-    return "Aucune catégorie sélectionnée";
+    return "Aucune categorie selectionnee";
   }
 
   if (!subcategory) {
@@ -294,9 +290,9 @@ function buildSearchResults(query, categories, resources, rootCategories, catego
     .filter((category) => normalizeText(category.name).includes(normalizedQuery))
     .map((category) => ({
       id: `root-${category.id}`,
-      kind: "category",
+      kind: "categorie",
       label: category.name,
-      meta: "Catégorie racine",
+      meta: "Categorie racine",
       rootId: category.id,
       subcategoryId: null
     }));
@@ -306,9 +302,9 @@ function buildSearchResults(query, categories, resources, rootCategories, catego
     .filter((category) => rootIdSet.has(String(category.parent_id)))
     .map((category) => ({
       id: `subcategory-${category.id}`,
-      kind: "subcategory",
+      kind: "sous-categorie",
       label: category.name,
-      meta: `Sous-catégorie de ${categoryMap.get(String(category.parent_id))?.name ?? "Catégorie inconnue"}`,
+      meta: `Sous-categorie de ${categoryMap.get(String(category.parent_id))?.name ?? "Categorie inconnue"}`,
       rootId: category.parent_id,
       subcategoryId: category.id
     }));
@@ -325,7 +321,7 @@ function buildSearchResults(query, categories, resources, rootCategories, catego
       const subcategoryId = category?.parent_id != null ? category.id : null;
       const location = rootCategory && category?.parent_id != null
         ? `${rootCategory.name} > ${category.name}`
-        : category?.name ?? "Non classé";
+        : category?.name ?? "Non classe";
 
       return {
         id: `resource-${resource.id}`,
@@ -351,9 +347,9 @@ function renderSearchResults(results, query) {
       <div class="category-toolbar-header">
         <div>
           <p class="section-kicker">Recherche</p>
-          <h3>Résultats</h3>
+          <h3>Resultats</h3>
         </div>
-        <span class="pill is-user">${results.length} résultat(s)</span>
+        <span class="pill is-user">${results.length} resultat(s)</span>
       </div>
 
       ${
@@ -378,7 +374,7 @@ function renderSearchResults(results, query) {
                 .join("")}
             </div>
           `
-          : `<p class="empty-state">Aucun résultat pour "${query}".</p>`
+          : `<p class="empty-state">Aucun resultat pour "${query}".</p>`
       }
     </section>
   `;
@@ -444,14 +440,14 @@ export async function renderFavoritesView(container) {
         <div class="favorites-view stack">
           <div class="info-card">
             <p class="section-kicker">Favoris</p>
-            <strong>${visibleResources.length} document(s) enregistré(s)</strong>
-            <p class="muted">Les favoris sont stockés localement dans ce navigateur.</p>
+            <strong>${visibleResources.length} document(s) enregistre(s)</strong>
+            <p class="muted">Les favoris sont stockes localement dans ce navigateur.</p>
           </div>
 
           ${renderDocuments(
             visibleResources,
             refreshedFavorites,
-            "Aucun favori enregistré pour le moment."
+            "Aucun favori enregistre pour le moment."
           )}
         </div>
       `;
@@ -467,26 +463,22 @@ export async function renderFavoritesView(container) {
 }
 
 export async function renderCategoriesView(container, options = {}) {
-  const { rootCategoryName = null } = options;
-  container.innerHTML = '<p class="muted">Chargement des catégories...</p>';
+  const {
+    categoryType = "",
+    emptyMessage = "Aucune categorie racine disponible."
+  } = options;
+
+  container.innerHTML = '<p class="muted">Chargement des categories...</p>';
 
   try {
-    const [categories, resources] = await Promise.all([fetchCategories(), fetchResources()]);
+    const [allCategories, allResources] = await Promise.all([fetchCategories(), fetchResources()]);
+    const categories = getFilteredCategories(allCategories, categoryType);
+    const resources = getFilteredResources(allResources, categories);
     const categoryMap = buildCategoryMap(categories);
-
-    const rootResult = rootCategoryName
-      ? getRootCategories(categories, rootCategoryName)
-      : { namedRoot: null, rootCategories: getRootCategories(categories) };
-
-    if (rootCategoryName && !rootResult.namedRoot) {
-      container.innerHTML = `<p class="feedback is-warning">La catégorie "${rootCategoryName}" est introuvable.</p>`;
-      return;
-    }
-
-    const rootCategories = rootResult.rootCategories;
+    const rootCategories = getRootCategoriesForType(categories, categoryType);
 
     if (!rootCategories.length) {
-      container.innerHTML = '<p class="empty-state">Aucune catégorie racine disponible.</p>';
+      container.innerHTML = `<p class="empty-state">${emptyMessage}</p>`;
       return;
     }
 
@@ -504,7 +496,6 @@ export async function renderCategoriesView(container, options = {}) {
       const selectedRoot = normalized.selectedRoot;
       const subcategories = normalized.subcategories;
       const selectedSubcategory = normalized.selectedSubcategory;
-
       const activeDocumentCategoryId = selectedSubcategory?.id ?? selectedRoot?.id ?? null;
       const documents = resources
         .filter((resource) => String(resource.category_id) === String(activeDocumentCategoryId))
@@ -527,7 +518,7 @@ export async function renderCategoriesView(container, options = {}) {
                   id="categorySearchInput"
                   class="search-input"
                   type="search"
-                  placeholder="Rechercher une catégorie, sous-catégorie ou un document..."
+                  placeholder="Rechercher une categorie, sous-categorie ou un document..."
                   value="${searchQuery}"
                 >
               </label>
@@ -552,7 +543,7 @@ export async function renderCategoriesView(container, options = {}) {
               <p class="section-kicker">Navigation rapide</p>
               <strong>${breadcrumb}</strong>
               <p class="muted">
-                ${rootCategories.length} catégorie(s), ${subcategories.length} sous-catégorie(s), ${documents.length} document(s).
+                ${rootCategories.length} categorie(s), ${subcategories.length} sous-categorie(s), ${documents.length} document(s).
               </p>
             </div>
           </div>
@@ -560,36 +551,36 @@ export async function renderCategoriesView(container, options = {}) {
           <div class="categories-columns">
             <section class="category-column">
               <div class="category-column-header">
-                <p class="section-kicker">Étape 1</p>
-                <h3>Catégories</h3>
+                <p class="section-kicker">Etape 1</p>
+                <h3>Categories</h3>
               </div>
               ${renderSelectableList(rootCategories, selectedRootId, {
                 buttonAttr: "data-root-id",
-                emptyMessage: "Aucune catégorie racine disponible.",
+                emptyMessage: "Aucune categorie racine disponible.",
                 helperText: (category) => {
                   const subcategoryCount = getDirectChildren(categories, category.id).length;
                   const documentCount = countDocumentsForCategory(resources, category.id);
-                  return `${subcategoryCount} sous-catégorie(s) • ${documentCount} document(s)`;
+                  return `${subcategoryCount} sous-categorie(s) • ${documentCount} document(s)`;
                 }
               })}
             </section>
 
             <section class="category-column">
               <div class="category-column-header">
-                <p class="section-kicker">Étape 2</p>
-                <h3>Sous-catégories</h3>
+                <p class="section-kicker">Etape 2</p>
+                <h3>Sous-categories</h3>
               </div>
               ${
                 subcategories.length
                   ? renderSelectableList(subcategories, selectedSubcategoryId, {
                       buttonAttr: "data-subcategory-id",
-                      emptyMessage: "Aucune sous-catégorie disponible.",
+                      emptyMessage: "Aucune sous-categorie disponible.",
                       helperText: (subcategory) => `${countDocumentsForCategory(resources, subcategory.id)} document(s)`
                     })
                   : `
                     <div class="empty-panel">
-                      <p class="empty-state">Aucune sous-catégorie pour cette catégorie.</p>
-                      <p class="muted">Les documents affichés à droite sont donc ceux liés directement à la catégorie sélectionnée.</p>
+                      <p class="empty-state">Aucune sous-categorie pour cette categorie.</p>
+                      <p class="muted">Les documents affiches a droite sont donc ceux lies directement a la categorie selectionnee.</p>
                     </div>
                   `
               }
@@ -597,7 +588,7 @@ export async function renderCategoriesView(container, options = {}) {
 
             <section class="category-column category-column-documents">
               <div class="category-column-header">
-                <p class="section-kicker">Étape 3</p>
+                <p class="section-kicker">Etape 3</p>
                 <h3>Documents</h3>
               </div>
               <p class="column-context">${documentsTitle}</p>
@@ -605,8 +596,8 @@ export async function renderCategoriesView(container, options = {}) {
                 documents,
                 favoriteIds,
                 selectedSubcategory
-                  ? "Aucun document n'est lié à cette sous-catégorie."
-                  : "Aucun document n'est lié à cette catégorie."
+                  ? "Aucun document n'est lie a cette sous-categorie."
+                  : "Aucun document n'est lie a cette categorie."
               )}
             </section>
           </div>
@@ -651,6 +642,6 @@ export async function renderCategoriesView(container, options = {}) {
     render();
   } catch (error) {
     console.error(error);
-    container.innerHTML = '<p class="feedback is-error">Impossible de charger les catégories et documents.</p>';
+    container.innerHTML = '<p class="feedback is-error">Impossible de charger les categories et documents.</p>';
   }
 }

@@ -39,7 +39,7 @@ function truncateText(text, maxLength = 160) {
 }
 
 export async function renderCardsView(container) {
-  container.innerHTML = '<p class="muted">Chargement des fiches médicaments...</p>';
+  container.innerHTML = '<p class="muted">Chargement des medocs d\'urgence...</p>';
 
   try {
     const [cards, categoriesMap] = await Promise.all([fetchCards(), fetchCategoriesMap()]);
@@ -49,9 +49,16 @@ export async function renderCardsView(container) {
       const selectedCard = cards.find((card) => card.id === selectedCardId) ?? null;
 
       container.innerHTML = `
-        <div class="two-columns">
-          <div class="list-panel">
-            <h3>Fiches disponibles</h3>
+        <div class="stack emergency-view">
+          <div class="info-card emergency-hero">
+            <p class="section-kicker">Medocs d'urgence</p>
+            <strong>Ecran dedie aux fiches prioritaires</strong>
+            <p class="muted">Cette vue reste separee pour accueillir ensuite des fiches plus visuelles et des reperes couleur.</p>
+          </div>
+
+          <div class="two-columns">
+            <div class="list-panel">
+              <h3>Fiches disponibles</h3>
             ${
               cards.length
                 ? cards
@@ -66,48 +73,49 @@ export async function renderCardsView(container) {
                     .join("")
                 : '<p class="empty-state">Aucune fiche médicament disponible.</p>'
             }
-          </div>
+            </div>
 
-          <div class="detail-panel">
-            ${
-              selectedCard
-                ? `
-                  <div class="stack">
-                    <div class="info-card">
-                      <p class="section-kicker">Fiche médicament</p>
-                      <strong>${selectedCard.title}</strong>
-                      <p class="muted">Catégorie : ${categoriesMap.get(selectedCard.category_id) ?? "Sans catégorie"}</p>
+            <div class="detail-panel">
+              ${
+                selectedCard
+                  ? `
+                    <div class="stack">
+                      <div class="info-card emergency-detail-card">
+                        <p class="section-kicker">Fiche d'urgence</p>
+                        <strong>${selectedCard.title}</strong>
+                        <p class="muted">Categorie : ${categoriesMap.get(selectedCard.category_id) ?? "Sans categorie"}</p>
+                      </div>
+                      <div class="detail-body">${selectedCard.content || "Contenu non renseigne."}</div>
                     </div>
-                    <div class="detail-body">${selectedCard.content || "Contenu non renseigné."}</div>
-                  </div>
-                `
-                : '<p class="empty-state">Sélectionnez une fiche pour afficher son détail.</p>'
-            }
+                  `
+                  : '<p class="empty-state">Selectionnez une fiche pour afficher son detail.</p>'
+              }
+            </div>
           </div>
-        </div>
 
-        ${
-          cards.length
-            ? `
-              <div class="stack">
-                <h3>Vue cartes</h3>
-                <div class="card-grid">
-                  ${cards
-                    .map(
-                      (card) => `
-                        <article class="med-card">
-                          <p class="card-tag">${categoriesMap.get(card.category_id) ?? "Sans catégorie"}</p>
-                          <h4>${card.title}</h4>
-                          <p>${truncateText(card.content)}</p>
-                        </article>
-                      `
-                    )
-                    .join("")}
+          ${
+            cards.length
+              ? `
+                <div class="stack">
+                  <h3>Vue cartes</h3>
+                  <div class="card-grid">
+                    ${cards
+                      .map(
+                        (card) => `
+                          <article class="med-card emergency-card-preview">
+                            <p class="card-tag">${categoriesMap.get(card.category_id) ?? "Sans categorie"}</p>
+                            <h4>${card.title}</h4>
+                            <p>${truncateText(card.content)}</p>
+                          </article>
+                        `
+                      )
+                      .join("")}
+                  </div>
                 </div>
-              </div>
-            `
-            : ""
-        }
+              `
+              : ""
+          }
+        </div>
       `;
 
       container.querySelectorAll("[data-card-id]").forEach((button) => {
@@ -121,6 +129,6 @@ export async function renderCardsView(container) {
     render();
   } catch (error) {
     console.error(error);
-    container.innerHTML = '<p class="feedback is-error">Impossible de charger les fiches médicaments.</p>';
+    container.innerHTML = '<p class="feedback is-error">Impossible de charger les medocs d\'urgence.</p>';
   }
 }
