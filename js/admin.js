@@ -155,14 +155,57 @@ function getChildren(categories, parentId) {
     .sort(compareBySortOrder);
 }
 
+function inferTypeFromName(name) {
+  const normalizedName = normalizeText(name);
+
+  if (normalizedName === "medicaments" || normalizedName === "medicament") return "medicament";
+  if (normalizedName === "annuaires" || normalizedName === "annuaire") return "annuaire";
+  if (normalizedName === "codes" || normalizedName === "code") return "code";
+  if (normalizedName === "protocoles et procedures" || normalizedName === "protocoles" || normalizedName === "protocoles/procedures") {
+    return "protocole";
+  }
+
+  return null;
+}
+
+function buildCategoryMap(categories) {
+  return new Map(categories.map((category) => [String(category.id), category]));
+}
+
+function resolveCategoryType(category, categoryMap) {
+  if (!category) {
+    return "";
+  }
+
+  if (category.type) {
+    return category.type;
+  }
+
+  let currentCategory = category;
+
+  while (currentCategory?.parent_id != null) {
+    currentCategory = categoryMap.get(String(currentCategory.parent_id)) ?? null;
+
+    if (!currentCategory) {
+      break;
+    }
+
+    if (currentCategory.type) {
+      return currentCategory.type;
+    }
+  }
+
+  return inferTypeFromName(currentCategory?.name ?? category.name) ?? "protocole";
+}
+
 function getTypeLabel(type) {
   return CATEGORY_TYPE_OPTIONS.find((option) => option.value === type)?.label ?? "Type non defini";
 }
 
-function getRootCategories(categories, type = null) {
+function getRootCategories(categories, type = null, categoryMap = buildCategoryMap(categories)) {
   return categories
     .filter((category) => category.parent_id == null)
-    .filter((category) => (type ? category.type === type : true))
+    .filter((category) => (type ? resolveCategoryType(category, categoryMap) === type : true))
     .sort(compareBySortOrder);
 }
 
@@ -180,6 +223,10 @@ function getNextSortOrder(items) {
   return Math.max(...items.map((item) => Number(item.sort_order) || 0)) + 1;
 }
 
+function hasCategorySortOrder(categories) {
+  return categories.some((category) => Object.prototype.hasOwnProperty.call(category, "sort_order"));
+}
+
 function getUploadFeedbackMarkup(feedback) {
   if (!feedback?.message) {
     return "";
@@ -189,11 +236,13 @@ function getUploadFeedbackMarkup(feedback) {
 }
 
 function buildParentCategoryOptions(categories, selectedId = "") {
+  const categoryMap = buildCategoryMap(categories);
+
   return `
     <option value="">Categorie principale</option>
     ${CATEGORY_TYPE_OPTIONS
       .map((typeOption) => {
-        const roots = getRootCategories(categories, typeOption.value);
+        const roots = getRootCategories(categories, typeOption.value, categoryMap);
 
         if (!roots.length) {
           return "";
@@ -218,11 +267,13 @@ function buildParentCategoryOptions(categories, selectedId = "") {
 }
 
 function buildCategoryTargetOptions(categories, selectedId = "") {
+  const categoryMap = buildCategoryMap(categories);
+
   return `
     <option value="">Selectionner une categorie</option>
     ${CATEGORY_TYPE_OPTIONS
       .map((typeOption) => {
-        const roots = getRootCategories(categories, typeOption.value);
+        const roots = getRootCategories(categories, typeOption.value, categoryMap);
 
         if (!roots.length) {
           return "";
@@ -255,6 +306,10 @@ function buildCategoryTargetOptions(categories, selectedId = "") {
   `;
 }
 async function swapCategoryOrder(categories, categoryId, direction) {
+  if (!hasCategorySortOrder(categories)) {
+    throw new Error("La colonne categories.sort_order est absente en base.");
+  }
+
   const target = categories.find((category) => String(category.id) === String(categoryId));
 
   if (!target) {
@@ -310,10 +365,13 @@ async function swapResourceOrder(resources, resourceId, direction) {
   ]);
 }
 
-function buildCategoryTreeMarkup(categories, resources) {
+function buildCategoryTreeMarkup(categories, resources, options = {}) {
+  const categoryMap = buildCategoryMap(categories);
+  const { categorySortOrderEnabled = true } = options;
+
   return CATEGORY_TYPE_OPTIONS
     .map((typeOption) => {
-      const roots = getRootCategories(categories, typeOption.value);
+      const roots = getRootCategories(categories, typeOption.value, categoryMap);
 
       return `
         <section class="stack">
@@ -340,8 +398,12 @@ function buildCategoryTreeMarkup(categories, resources) {
                           </div>
 
                           <div class="inline-actions">
-                            <button class="button button-secondary button-small" type="button" data-category-move-up="${rootCategory.id}">↑ Monter</button>
-                            <button class="button button-secondary button-small" type="button" data-category-move-down="${rootCategory.id}">↓ Descendre</button>
+                            <button class="button button-secondary button-small" type="button" data-category-move-up="${rootCategory.id}" ${categorySortOrderEnabled ? "" : 'title="Migration sort_order requise"'}>
+                              ↑ Monter
+                            </button>
+                            <button class="button button-secondary button-small" type="button" data-category-move-down="${rootCategory.id}" ${categorySortOrderEnabled ? "" : 'title="Migration sort_order requise"'}>
+                              ↓ Descendre
+                            </button>
                             <button class="button button-ghost button-small" type="button" data-category-edit="${rootCategory.id}">Modifier</button>
                             <button class="button button-secondary button-small" type="button" data-category-delete="${rootCategory.id}">Supprimer</button>
                           </div>
@@ -364,8 +426,12 @@ function buildCategoryTreeMarkup(categories, resources) {
                                           </div>
 
                                           <div class="inline-actions">
-                                            <button class="button button-secondary button-small" type="button" data-category-move-up="${child.id}">↑</button>
-                                            <button class="button button-secondary button-small" type="button" data-category-move-down="${child.id}">↓</button>
+                                            <button class="button button-secondary button-small" type="button" data-category-move-up="${child.id}" ${categorySortOrderEnabled ? "" : 'title="Migration sort_order requise"'}>
+                                              ↑
+                                            </button>
+                                            <button class="button button-secondary button-small" type="button" data-category-move-down="${child.id}" ${categorySortOrderEnabled ? "" : 'title="Migration sort_order requise"'}>
+                                              ↓
+                                            </button>
                                             <button class="button button-ghost button-small" type="button" data-category-edit="${child.id}">Modifier</button>
                                             <button class="button button-secondary button-small" type="button" data-category-delete="${child.id}">Supprimer</button>
                                           </div>
@@ -445,12 +511,14 @@ export async function renderAdminView(container) {
     };
 
     const render = () => {
+      const categoryMap = buildCategoryMap(categories);
+      const categorySortOrderEnabled = hasCategorySortOrder(categories);
       const editingCategory = categories.find((category) => String(category.id) === String(editingCategoryId)) ?? null;
       const editingDocument = resources.find((resource) => String(resource.id) === String(editingDocumentId)) ?? null;
       const editingParent = editingCategory?.parent_id
         ? categories.find((category) => String(category.id) === String(editingCategory.parent_id)) ?? null
         : null;
-      const selectedCategoryType = editingParent?.type ?? editingCategory?.type ?? CATEGORY_TYPE_OPTIONS[0].value;
+      const selectedCategoryType = resolveCategoryType(editingParent ?? editingCategory, categoryMap) || CATEGORY_TYPE_OPTIONS[0].value;
 
       container.innerHTML = `
         <div class="stack">
@@ -576,7 +644,7 @@ export async function renderAdminView(container) {
               <p class="section-kicker">Contenu</p>
               <h4>Categories, sous-categories et documents</h4>
               <div class="stack">
-                ${buildCategoryTreeMarkup(categories, resources) || '<p class="empty-state">Aucune categorie enregistree.</p>'}
+                ${buildCategoryTreeMarkup(categories, resources, { categorySortOrderEnabled }) || '<p class="empty-state">Aucune categorie enregistree.</p>'}
               </div>
             </article>
 
@@ -621,11 +689,12 @@ export async function renderAdminView(container) {
       function syncCategoryTypeField() {
         const parentId = String(categoryParentSelect?.value ?? "").trim();
         const parentCategory = categories.find((category) => String(category.id) === parentId) ?? null;
+        const parentType = resolveCategoryType(parentCategory, categoryMap);
 
         if (parentCategory) {
-          categoryTypeSelect.value = parentCategory.type || categoryTypeSelect.value;
+          categoryTypeSelect.value = parentType || categoryTypeSelect.value;
           categoryTypeSelect.disabled = true;
-          categoryTypeHint.textContent = `Type herite du parent : ${getTypeLabel(parentCategory.type)}.`;
+          categoryTypeHint.textContent = `Type herite du parent : ${getTypeLabel(parentType)}.`;
           return;
         }
 
@@ -742,7 +811,7 @@ export async function renderAdminView(container) {
           } catch (error) {
             console.error(error);
             categoryFeedback = {
-              message: "Reorganisation impossible.",
+              message: error.message ?? "Reorganisation impossible.",
               type: "is-error"
             };
           }
@@ -759,7 +828,7 @@ export async function renderAdminView(container) {
           } catch (error) {
             console.error(error);
             categoryFeedback = {
-              message: "Reorganisation impossible.",
+              message: error.message ?? "Reorganisation impossible.",
               type: "is-error"
             };
           }
@@ -860,7 +929,7 @@ export async function renderAdminView(container) {
         const parentCategory = parentId
           ? categories.find((category) => String(category.id) === String(parentId)) ?? null
           : null;
-        const resolvedType = parentCategory?.type ?? selectedType;
+        const resolvedType = resolveCategoryType(parentCategory, categoryMap) || selectedType;
 
         if (!name || !resolvedType) {
           categoryFeedback = {
@@ -879,16 +948,20 @@ export async function renderAdminView(container) {
                 String(category.parent_id ?? "") === String(parentId ?? "") &&
                 String(category.id) !== String(editingCategory.id)
             );
-
-            await updateCategory(editingCategory.id, {
+            const payload = {
               name,
               parent_id: parentId,
-              type: resolvedType,
-              sort_order:
+              type: resolvedType
+            };
+
+            if (hasCategorySortOrder(categories)) {
+              payload.sort_order =
                 String(oldParentId ?? "") === String(parentId ?? "")
                   ? editingCategory.sort_order
-                  : getNextSortOrder(siblings)
-            });
+                  : getNextSortOrder(siblings);
+            }
+
+            await updateCategory(editingCategory.id, payload);
 
             categoryFeedback = {
               message: "Categorie mise a jour avec succes.",
@@ -899,13 +972,17 @@ export async function renderAdminView(container) {
             const siblings = categories.filter(
               (category) => String(category.parent_id ?? "") === String(parentId ?? "")
             );
-
-            await createCategory({
+            const payload = {
               name,
               parent_id: parentId,
-              type: resolvedType,
-              sort_order: getNextSortOrder(siblings)
-            });
+              type: resolvedType
+            };
+
+            if (hasCategorySortOrder(categories)) {
+              payload.sort_order = getNextSortOrder(siblings);
+            }
+
+            await createCategory(payload);
 
             categoryFeedback = {
               message: "Categorie creee avec succes.",
@@ -917,7 +994,7 @@ export async function renderAdminView(container) {
         } catch (error) {
           console.error(error);
           categoryFeedback = {
-            message: "Enregistrement impossible pour cette categorie.",
+            message: `Enregistrement impossible pour cette categorie : ${error.message ?? "erreur inconnue"}`,
             type: "is-error"
           };
         }

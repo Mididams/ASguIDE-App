@@ -94,22 +94,61 @@ function buildCategoryMap(categories) {
   return new Map(categories.map((category) => [String(category.id), category]));
 }
 
+function inferTypeFromName(name) {
+  const normalizedName = normalizeText(name);
+
+  if (normalizedName === "medicaments" || normalizedName === "medicament") return "medicament";
+  if (normalizedName === "annuaires" || normalizedName === "annuaire") return "annuaire";
+  if (normalizedName === "codes" || normalizedName === "code") return "code";
+  if (normalizedName === "protocoles et procedures" || normalizedName === "protocoles" || normalizedName === "protocoles/procedures") {
+    return "protocole";
+  }
+
+  return null;
+}
+
+function resolveCategoryType(category, categoryMap) {
+  if (!category) {
+    return "";
+  }
+
+  if (category.type) {
+    return normalizeText(category.type);
+  }
+
+  let currentCategory = category;
+
+  while (currentCategory?.parent_id != null) {
+    currentCategory = categoryMap.get(String(currentCategory.parent_id)) ?? null;
+
+    if (!currentCategory) {
+      break;
+    }
+
+    if (currentCategory.type) {
+      return normalizeText(currentCategory.type);
+    }
+  }
+
+  return inferTypeFromName(currentCategory?.name ?? category.name) ?? "protocole";
+}
+
 function getDirectChildren(categories, parentId) {
   return categories
     .filter((category) => String(category.parent_id) === String(parentId))
     .sort(compareBySortOrder);
 }
 
-function getRootCategoriesForType(categories, categoryType) {
+function getRootCategoriesForType(categories, categoryType, categoryMap) {
   return categories
     .filter((category) => category.parent_id == null)
-    .filter((category) => normalizeText(category.type) === normalizeText(categoryType))
+    .filter((category) => resolveCategoryType(category, categoryMap) === normalizeText(categoryType))
     .sort(compareBySortOrder);
 }
 
-function getFilteredCategories(categories, categoryType) {
+function getFilteredCategories(categories, categoryType, categoryMap) {
   return categories
-    .filter((category) => normalizeText(category.type) === normalizeText(categoryType))
+    .filter((category) => resolveCategoryType(category, categoryMap) === normalizeText(categoryType))
     .sort(compareBySortOrder);
 }
 
@@ -472,10 +511,11 @@ export async function renderCategoriesView(container, options = {}) {
 
   try {
     const [allCategories, allResources] = await Promise.all([fetchCategories(), fetchResources()]);
-    const categories = getFilteredCategories(allCategories, categoryType);
+    const allCategoryMap = buildCategoryMap(allCategories);
+    const categories = getFilteredCategories(allCategories, categoryType, allCategoryMap);
     const resources = getFilteredResources(allResources, categories);
     const categoryMap = buildCategoryMap(categories);
-    const rootCategories = getRootCategoriesForType(categories, categoryType);
+    const rootCategories = getRootCategoriesForType(categories, categoryType, categoryMap);
 
     let selectedRootId = rootCategories[0]?.id ?? null;
     let selectedSubcategoryId = null;

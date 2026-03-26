@@ -30,7 +30,7 @@ const NAV_ITEMS = [
   },
   {
     id: "protocols",
-    label: "Protocoles et procédures",
+    label: "Protocoles / Procédures",
     kind: "generic",
     categoryType: "protocole",
     emptyMessage: "Aucune categorie protocole disponible."
