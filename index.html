@@ -2,89 +2,103 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>ASguIDE App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f766e">
+  <title>ASguIDE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/style.css">
 </head>
 <body>
+  <div class="app-background"></div>
 
-<h1>ASguIDE</h1>
+  <div class="page-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Urgences URM</p>
+        <h1>ASguIDE</h1>
+      </div>
 
-<button id="loginBtn">Se connecter</button>
-<button id="logoutBtn">Se déconnecter</button>
+      <div class="topbar-actions">
+        <div id="userStatus" class="user-status">
+          <span class="status-dot is-offline"></span>
+          <div>
+            <strong>Non connecté</strong>
+            <p>Veuillez vous identifier</p>
+          </div>
+        </div>
 
-<p id="status">Non connecté</p>
+        <button id="logoutBtn" class="button button-secondary hidden" type="button">
+          Déconnexion
+        </button>
+      </div>
+    </header>
 
-<div id="adminPanel" style="display:none; margin-top:20px; padding:10px; border:1px solid black;">
-  <h2>Admin</h2>
-  <p>Espace administration visible seulement pour les admins.</p>
-</div>
+    <main id="mainLayout" class="layout is-auth-only">
+      <section id="authPanel" class="panel auth-panel">
+        <div class="panel-header">
+          <div>
+            <p class="section-kicker">Connexion sécurisée</p>
+            <h2>Accès réservé à l'équipe</h2>
+          </div>
+        </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <p class="muted">
+          Connectez-vous avec votre compte Supabase existant pour accéder aux contenus du service.
+        </p>
 
-<script>
-const supabaseUrl = "https://wconzbxoisgvoodccact.supabase.co";
-const supabaseKey = "sb_publishable_Q16mJNhf0kCWvRcdsr-ymw_9bDdoz_E";
+        <form id="loginForm" class="auth-form">
+          <label>
+            <span>Email</span>
+            <input id="emailInput" name="email" type="email" autocomplete="email" required>
+          </label>
 
-const client = supabase.createClient(supabaseUrl, supabaseKey);
+          <label>
+            <span>Mot de passe</span>
+            <input id="passwordInput" name="password" type="password" autocomplete="current-password" required>
+          </label>
 
-const statusEl = document.getElementById("status");
-const adminPanel = document.getElementById("adminPanel");
+          <button class="button button-primary" type="submit">Se connecter</button>
+        </form>
 
-async function afficherProfil() {
-  const { data: { user } } = await client.auth.getUser();
+        <p id="authMessage" class="feedback hidden"></p>
+      </section>
 
-  if (!user) {
-    statusEl.textContent = "Non connecté ❌";
-    adminPanel.style.display = "none";
-    return;
-  }
+      <section id="waitingPanel" class="panel hidden">
+        <div class="panel-header">
+          <div>
+            <p class="section-kicker">Validation requise</p>
+            <h2>Accès en attente de validation</h2>
+          </div>
+        </div>
 
-  const { data, error } = await client
-    .from("profiles")
-    .select("email, role, status")
-    .eq("id", user.id)
-    .single();
+        <p id="waitingMessage" class="muted">
+          Votre compte est connecté, mais n'est pas encore autorisé à accéder à l'application.
+        </p>
+      </section>
 
-  if (error) {
-    statusEl.textContent = "Erreur profil";
-    console.error(error);
-    return;
-  }
+      <section id="appPanel" class="app-panel hidden">
+        <aside class="sidebar panel">
+          <div class="panel-header">
+            <div>
+              <p class="section-kicker">Navigation</p>
+              <h2>Menu principal</h2>
+            </div>
+          </div>
 
-  if (data.status !== "approved") {
-    statusEl.textContent = "⛔ Accès en attente de validation";
-    adminPanel.style.display = "none";
-    return;
-  }
+          <nav id="mainNav" class="nav-list" aria-label="Navigation principale"></nav>
+        </aside>
 
-  statusEl.textContent = `✅ ${data.email} | rôle : ${data.role}`;
+        <section class="content-column">
+          <div id="viewHeader" class="panel view-header"></div>
+          <section id="mainContent" class="panel content-panel"></section>
+        </section>
+      </section>
+    </main>
+  </div>
 
-  if (data.role === "admin") {
-    adminPanel.style.display = "block";
-  } else {
-    adminPanel.style.display = "none";
-  }
-}
-
-document.getElementById("loginBtn").onclick = async () => {
-  const email = prompt("Email");
-  const password = prompt("Mot de passe");
-
-  const { error } = await client.auth.signInWithPassword({
-    email,
-    password
-  });
-
-  if (error) alert(error.message);
-  else await afficherProfil();
-};
-
-document.getElementById("logoutBtn").onclick = async () => {
-  await client.auth.signOut();
-  await afficherProfil();
-};
-
-afficherProfil();
-</script>
-
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script type="module" src="./js/app.js"></script>
 </body>
 </html>

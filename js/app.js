@@ -1,0 +1,317 @@
+import { APP_NAME } from "./config.js";
+import {
+  getAuthContext,
+  getProfileDisplayName,
+  signIn,
+  signOut,
+  subscribeToAuthChanges
+} from "./auth.js";
+import { renderCategoriesView } from "./categories.js";
+import { renderCardsView } from "./cards.js";
+import { renderDirectoryView } from "./directory.js";
+import { renderAdminView } from "./admin.js";
+
+const state = {
+  session: null,
+  user: null,
+  profile: null,
+  currentView: "home"
+};
+
+const viewConfig = {
+  home: {
+    label: "Accueil",
+    title: "Accueil",
+    description: "Vue d'ensemble du profil connecté et des modules disponibles."
+  },
+  categories: {
+    label: "Catégories",
+    title: "Catégories",
+    description: "Parcourez les catégories, sous-catégories et documents."
+  },
+  cards: {
+    label: "Fiches médicaments",
+    title: "Fiches médicaments",
+    description: "Consultez les fiches thérapeutiques stockées dans la table cards."
+  },
+  directory: {
+    label: "Annuaires",
+    title: "Annuaires",
+    description: "Retrouvez les numéros utiles et les UF du service."
+  },
+  codes: {
+    label: "Codes",
+    title: "Codes",
+    description: "Section privée prévue pour les codes utiles du service."
+  },
+  admin: {
+    label: "Administration",
+    title: "Administration",
+    description: "Outils réservés aux administrateurs."
+  }
+};
+
+const elements = {
+  mainLayout: document.getElementById("mainLayout"),
+  authPanel: document.getElementById("authPanel"),
+  waitingPanel: document.getElementById("waitingPanel"),
+  appPanel: document.getElementById("appPanel"),
+  loginForm: document.getElementById("loginForm"),
+  emailInput: document.getElementById("emailInput"),
+  passwordInput: document.getElementById("passwordInput"),
+  authMessage: document.getElementById("authMessage"),
+  userStatus: document.getElementById("userStatus"),
+  logoutBtn: document.getElementById("logoutBtn"),
+  waitingMessage: document.getElementById("waitingMessage"),
+  mainNav: document.getElementById("mainNav"),
+  viewHeader: document.getElementById("viewHeader"),
+  mainContent: document.getElementById("mainContent")
+};
+
+function setFeedback(message = "", type = "is-error") {
+  elements.authMessage.textContent = message;
+  elements.authMessage.className = message ? `feedback ${type}` : "feedback hidden";
+
+  if (!message) {
+    elements.authMessage.classList.add("hidden");
+  }
+}
+
+function getNavigationItems() {
+  const items = ["home", "categories", "cards", "directory", "codes"];
+
+  if (state.profile?.role === "admin") {
+    items.push("admin");
+  }
+
+  return items;
+}
+
+function updateUserStatus() {
+  const label = state.user ? getProfileDisplayName(state.profile) : "Non connecté";
+  const info = state.user
+    ? `${state.profile?.role ?? "utilisateur"} - statut : ${state.profile?.status ?? "inconnu"}`
+    : "Veuillez vous identifier";
+
+  const dotClass = !state.user
+    ? "is-offline"
+    : state.profile?.status === "approved"
+      ? "is-online"
+      : state.profile?.status === "rejected"
+        ? "is-danger"
+        : "is-warning";
+
+  elements.userStatus.innerHTML = `
+    <span class="status-dot ${dotClass}"></span>
+    <div>
+      <strong>${label}</strong>
+      <p>${info}</p>
+    </div>
+  `;
+}
+
+function renderNavigation() {
+  const items = getNavigationItems();
+
+  if (!items.includes(state.currentView)) {
+    state.currentView = "home";
+  }
+
+  elements.mainNav.innerHTML = items
+    .map(
+      (key) => `
+        <button class="nav-button ${state.currentView === key ? "is-active" : ""}" type="button" data-view="${key}">
+          ${viewConfig[key].label}
+        </button>
+      `
+    )
+    .join("");
+
+  elements.mainNav.querySelectorAll("[data-view]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.currentView = button.dataset.view;
+      renderNavigation();
+      renderCurrentView();
+    });
+  });
+}
+
+function renderViewHeader() {
+  const config = viewConfig[state.currentView];
+
+  elements.viewHeader.innerHTML = `
+    <div>
+      <p class="section-kicker">${APP_NAME}</p>
+      <h2 class="view-title">${config.title}</h2>
+      <p>${config.description}</p>
+    </div>
+  `;
+}
+
+function renderHomeView() {
+  elements.mainContent.innerHTML = `
+    <div class="stack">
+      <div class="stats-row">
+        <article class="stat-card">
+          <p class="inline-label">Utilisateur</p>
+          <strong>${getProfileDisplayName(state.profile)}</strong>
+        </article>
+        <article class="stat-card">
+          <p class="inline-label">Rôle</p>
+          <strong>${state.profile?.role ?? "inconnu"}</strong>
+        </article>
+        <article class="stat-card">
+          <p class="inline-label">Statut</p>
+          <strong>${state.profile?.status ?? "inconnu"}</strong>
+        </article>
+      </div>
+
+      <div class="card-grid">
+        <article class="info-card">
+          <p class="section-kicker">Application</p>
+          <strong>Base V1 opérationnelle</strong>
+          <p class="muted">Connexion, contrôle d'accès, navigation et chargement Supabase sont déjà reliés.</p>
+        </article>
+        <article class="info-card">
+          <p class="section-kicker">Contenus</p>
+          <strong>Documents et fiches</strong>
+          <p class="muted">Les catégories, ressources, fiches médicaments et annuaires sont déjà reliés aux tables existantes.</p>
+        </article>
+        <article class="info-card">
+          <p class="section-kicker">Évolution</p>
+          <strong>Structure extensible</strong>
+          <p class="muted">La base est prête pour enrichir les documents, ajouter la PWA et avancer vers un vrai CRUD.</p>
+        </article>
+      </div>
+    </div>
+  `;
+}
+
+async function renderCurrentView() {
+  renderViewHeader();
+
+  switch (state.currentView) {
+    case "categories":
+      await renderCategoriesView(elements.mainContent);
+      break;
+    case "cards":
+      await renderCardsView(elements.mainContent);
+      break;
+    case "directory":
+      await renderDirectoryView(elements.mainContent);
+      break;
+    case "codes":
+      await renderCategoriesView(elements.mainContent, { rootCategoryName: "Codes" });
+      break;
+    case "admin":
+      if (state.profile?.role === "admin") {
+        await renderAdminView(elements.mainContent);
+      } else {
+        state.currentView = "home";
+        renderNavigation();
+        renderHomeView();
+      }
+      break;
+    default:
+      renderHomeView();
+      break;
+  }
+}
+
+function renderAccessState() {
+  updateUserStatus();
+
+  const isConnected = Boolean(state.user);
+  const isApproved = state.profile?.status === "approved";
+
+  elements.logoutBtn.classList.toggle("hidden", !isConnected);
+  elements.authPanel.classList.toggle("hidden", isConnected);
+  elements.waitingPanel.classList.toggle("hidden", !isConnected || isApproved);
+  elements.appPanel.classList.toggle("hidden", !isConnected || !isApproved);
+  elements.mainLayout.classList.toggle("is-auth-only", !isConnected);
+
+  if (isConnected && !isApproved) {
+    elements.waitingMessage.textContent =
+      state.profile?.status === "rejected"
+        ? "Votre accès a été refusé. Contactez un administrateur du service."
+        : "Votre compte est connecté mais doit encore être validé par un administrateur.";
+  }
+
+  if (isConnected && isApproved) {
+    renderNavigation();
+    renderCurrentView();
+  }
+}
+
+async function refreshAuthState() {
+  const { session, user, profile, error } = await getAuthContext();
+
+  state.session = session;
+  state.user = user;
+  state.profile = profile;
+
+  if (error && user) {
+    console.error(error);
+  }
+
+  renderAccessState();
+}
+
+async function handleLoginSubmit(event) {
+  event.preventDefault();
+  setFeedback("");
+
+  const email = elements.emailInput.value.trim();
+  const password = elements.passwordInput.value;
+
+  if (!email || !password) {
+    setFeedback("Veuillez renseigner un email et un mot de passe.", "is-warning");
+    return;
+  }
+
+  const submitButton = elements.loginForm.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+  submitButton.textContent = "Connexion...";
+
+  try {
+    const { error } = await signIn(email, password);
+
+    if (error) {
+      setFeedback(error.message, "is-error");
+      return;
+    }
+
+    elements.loginForm.reset();
+    setFeedback("Connexion réussie.", "is-success");
+    await refreshAuthState();
+  } catch (error) {
+    console.error(error);
+    setFeedback("Erreur inattendue lors de la connexion.", "is-error");
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = "Se connecter";
+  }
+}
+
+async function handleLogout() {
+  await signOut();
+  state.currentView = "home";
+  setFeedback("");
+  await refreshAuthState();
+}
+
+function registerEvents() {
+  elements.loginForm.addEventListener("submit", handleLoginSubmit);
+  elements.logoutBtn.addEventListener("click", handleLogout);
+
+  subscribeToAuthChanges(async () => {
+    await refreshAuthState();
+  });
+}
+
+async function initApp() {
+  registerEvents();
+  await refreshAuthState();
+}
+
+initApp();
