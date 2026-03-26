@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>ASguIDE App</title>
+</head>
+<body>
+
+<h1>ASguIDE</h1>
+
+<button id="loginBtn">Se connecter</button>
+<button id="logoutBtn">Se déconnecter</button>
+
+<p id="status">Non connecté</p>
+
+<div id="adminPanel" style="display:none; margin-top:20px; padding:10px; border:1px solid black;">
+  <h2>Admin</h2>
+  <p>Espace administration visible seulement pour les admins.</p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+const supabaseUrl = "https://wconzbxoisgvoodccact.supabase.co";
+const supabaseKey = "sb_publishable_Q16mJNhf0kCWvRcdsr-ymw_9bDdoz_E";
+
+const client = supabase.createClient(supabaseUrl, supabaseKey);
+
+const statusEl = document.getElementById("status");
+const adminPanel = document.getElementById("adminPanel");
+
+async function afficherProfil() {
+  const { data: { user } } = await client.auth.getUser();
+
+  if (!user) {
+    statusEl.textContent = "Non connecté ❌";
+    adminPanel.style.display = "none";
+    return;
+  }
+
+  const { data, error } = await client
+    .from("profiles")
+    .select("email, role, status")
+    .eq("id", user.id)
+    .single();
+
+  if (error) {
+    statusEl.textContent = "Erreur profil";
+    console.error(error);
+    return;
+  }
+
+  if (data.status !== "approved") {
+    statusEl.textContent = "⛔ Accès en attente de validation";
+    adminPanel.style.display = "none";
+    return;
+  }
+
+  statusEl.textContent = `✅ ${data.email} | rôle : ${data.role}`;
+
+  if (data.role === "admin") {
+    adminPanel.style.display = "block";
+  } else {
+    adminPanel.style.display = "none";
+  }
+}
+
+document.getElementById("loginBtn").onclick = async () => {
+  const email = prompt("Email");
+  const password = prompt("Mot de passe");
+
+  const { error } = await client.auth.signInWithPassword({
+    email,
+    password
+  });
+
+  if (error) alert(error.message);
+  else await afficherProfil();
+};
+
+document.getElementById("logoutBtn").onclick = async () => {
+  await client.auth.signOut();
+  await afficherProfil();
+};
+
+afficherProfil();
+</script>
+
+</body>
+</html>
