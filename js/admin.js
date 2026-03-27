@@ -137,6 +137,20 @@ async function updateCategorySortOrders(entries) {
   }
 }
 
+async function updateResourceSortOrders(entries) {
+  if (!entries.length) {
+    return;
+  }
+
+  const { error } = await supabaseClient
+    .from("resources")
+    .upsert(entries, { onConflict: "id" });
+
+  if (error) {
+    throw error;
+  }
+}
+
 async function removeCategory(categoryId) {
   const { error } = await supabaseClient
     .from("categories")
@@ -241,6 +255,10 @@ function hasCategorySortOrder(categories) {
   return categories.some((category) => Object.prototype.hasOwnProperty.call(category, "sort_order"));
 }
 
+function hasResourceSortOrder(resources) {
+  return resources.some((resource) => Object.prototype.hasOwnProperty.call(resource, "sort_order"));
+}
+
 function buildCategorySortPayload(categoryIds, categories) {
   const categoryMap = new Map(categories.map((category) => [String(category.id), category]));
 
@@ -257,6 +275,34 @@ function buildCategorySortPayload(categoryIds, categories) {
         parent_id: category.parent_id,
         type: category.type,
         name: category.name,
+        sort_order: index + 1
+      };
+    })
+    .filter(Boolean);
+}
+
+function buildResourceSortPayload(resourceIds, resources) {
+  const resourceMap = new Map(resources.map((resource) => [String(resource.id), resource]));
+
+  return resourceIds
+    .map((resourceId, index) => {
+      const resource = resourceMap.get(String(resourceId));
+
+      if (!resource) {
+        return null;
+      }
+
+      return {
+        id: resource.id,
+        title: resource.title,
+        description: resource.description,
+        type: resource.type,
+        category_id: resource.category_id,
+        external_url: resource.external_url,
+        file_path: resource.file_path,
+        file_name: resource.file_name,
+        mime_type: resource.mime_type,
+        file_size: resource.file_size,
         sort_order: index + 1
       };
     })
@@ -388,6 +434,10 @@ async function reorderCategoryGroup(categories, orderedCategoryIds) {
 }
 
 async function swapResourceOrder(resources, resourceId, direction) {
+  if (!hasResourceSortOrder(resources)) {
+    throw new Error("La colonne resources.sort_order est absente en base.");
+  }
+
   const target = resources.find((resource) => String(resource.id) === String(resourceId));
 
   if (!target) {
@@ -413,6 +463,20 @@ async function swapResourceOrder(resources, resourceId, direction) {
     updateResource(target.id, { sort_order: otherOrder }),
     updateResource(other.id, { sort_order: targetOrder })
   ]);
+}
+
+async function reorderResourceGroup(resources, orderedResourceIds) {
+  if (!hasResourceSortOrder(resources)) {
+    throw new Error("La colonne resources.sort_order est absente en base.");
+  }
+
+  const payload = buildResourceSortPayload(orderedResourceIds, resources);
+
+  if (!payload.length) {
+    return;
+  }
+
+  await updateResourceSortOrders(payload);
 }
 
 function buildCategoryTreeMarkup(categories, resources, options = {}) {
@@ -504,17 +568,22 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
                                         ${
                                           childDocuments.length
                                             ? `
-                                              <div class="admin-documents-list">
+                                              <div
+                                                class="admin-documents-list"
+                                                data-resource-sort-list
+                                                data-resource-category-id="${child.id}"
+                                              >
                                                 ${childDocuments
                                                   .map(
                                                     (resource) => `
-                                                      <div class="admin-document-row">
+                                                      <div class="admin-document-row" data-resource-sort-item data-resource-id="${resource.id}">
                                                         <div>
                                                           <strong>${resource.title}</strong>
                                                           <p class="muted">${resource.type || "document"} - ordre ${resource.sort_order ?? "-"}</p>
                                                         </div>
 
                                                         <div class="inline-actions">
+                                                          <span class="admin-drag-handle" title="${hasResourceSortOrder(resources) ? "Glisser pour reordonner" : "Migration sort_order requise"}">⋮⋮</span>
                                                           <button class="button button-secondary button-small" type="button" data-document-move-up="${resource.id}">↑</button>
                                                           <button class="button button-secondary button-small" type="button" data-document-move-down="${resource.id}">↓</button>
                                                           <button class="button button-ghost button-small" type="button" data-document-edit="${resource.id}">Modifier</button>
@@ -626,6 +695,65 @@ export async function renderAdminView(container) {
               console.error(error);
               categoryFeedback = {
                 message: error.message ?? "Reorganisation impossible.",
+                type: "is-error"
+              };
+            }
+
+            render();
+          }
+        });
+      });
+    };
+
+    const initResourceSortables = () => {
+      if (!window.Sortable) {
+        documentFeedback = {
+          message: "SortableJS n'est pas charge. Le drag & drop des documents est indisponible.",
+          type: "is-warning"
+        };
+        return;
+      }
+
+      container.querySelectorAll("[data-resource-sort-list]").forEach((list) => {
+        if (list._sortableInstance) {
+          list._sortableInstance.destroy();
+        }
+
+        const categoryId = list.dataset.resourceCategoryId ?? "";
+
+        list._sortableInstance = window.Sortable.create(list, {
+          animation: 180,
+          easing: "cubic-bezier(0.2, 0, 0, 1)",
+          handle: ".admin-drag-handle",
+          draggable: "[data-resource-sort-item]",
+          ghostClass: "is-drag-ghost",
+          chosenClass: "is-drag-chosen",
+          dragClass: "is-drag-active",
+          group: {
+            name: `resource-${categoryId}`,
+            pull: false,
+            put: false
+          },
+          onEnd: async () => {
+            const orderedResourceIds = Array.from(list.querySelectorAll("[data-resource-sort-item]"))
+              .map((item) => item.dataset.resourceId)
+              .filter(Boolean);
+
+            if (!orderedResourceIds.length) {
+              return;
+            }
+
+            try {
+              await reorderResourceGroup(resources, orderedResourceIds);
+              documentFeedback = {
+                message: "Ordre des documents mis a jour.",
+                type: "is-success"
+              };
+              await refreshData();
+            } catch (error) {
+              console.error(error);
+              documentFeedback = {
+                message: error.message ?? "Reorganisation impossible pour le document.",
                 type: "is-error"
               };
             }
@@ -1046,6 +1174,7 @@ export async function renderAdminView(container) {
       });
 
       initCategorySortables();
+      initResourceSortables();
 
       container.querySelector("#categoryForm")?.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -1185,9 +1314,11 @@ export async function renderAdminView(container) {
             external_url: isLinkType ? externalUrl : null
           };
 
-          payload.sort_order = editingDocument && String(editingDocument.category_id) === String(categoryId)
-            ? editingDocument.sort_order
-            : getNextSortOrder(siblings);
+          if (hasResourceSortOrder(resources)) {
+            payload.sort_order = editingDocument && String(editingDocument.category_id) === String(categoryId)
+              ? editingDocument.sort_order
+              : getNextSortOrder(siblings);
+          }
 
           if (isLinkType) {
             payload = {
