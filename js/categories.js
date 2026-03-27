@@ -424,7 +424,9 @@ function attachSharedDocumentEvents(container, rerender, resources) {
     button.addEventListener("click", async () => {
       const resourceId = button.dataset.openResourceId;
       const targetResource = resources.find((item) => String(item.id) === String(resourceId));
-      const pendingWindow = window.open("", "_blank");
+      const pendingWindow = isMobileCategoriesLayout()
+        ? window.open("", "_blank")
+        : null;
 
       button.disabled = true;
       const initialLabel = button.textContent;
@@ -440,7 +442,7 @@ function attachSharedDocumentEvents(container, rerender, resources) {
         if (pendingWindow) {
           pendingWindow.location.href = openUrl;
         } else {
-          window.open(openUrl, "_blank");
+          window.open(openUrl, "_blank", "noopener,noreferrer");
         }
       } catch (error) {
         console.error(error);
