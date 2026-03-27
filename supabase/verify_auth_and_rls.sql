@@ -31,6 +31,16 @@ where event_object_schema = 'auth'
   and event_object_table = 'users'
   and trigger_name = 'on_auth_user_created';
 
+select
+  trigger_name,
+  event_manipulation,
+  event_object_schema,
+  event_object_table
+from information_schema.triggers
+where event_object_schema = 'public'
+  and event_object_table = 'profiles'
+  and trigger_name = 'notify_admin_new_signup';
+
 -- ------------------------------------------------------------
 -- 3. Verifier la presence des policies
 -- ------------------------------------------------------------
