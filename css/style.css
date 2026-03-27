@@ -216,6 +216,15 @@ input {
   max-width: 520px;
 }
 
+.waiting-panel {
+  width: min(100%, 1170px);
+  text-align: center;
+}
+
+.waiting-panel .panel-header {
+  justify-content: center;
+}
+
 .auth-mode-toggle {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1014,9 +1023,9 @@ input:focus,
   inset: 0;
   z-index: 60;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 20px;
+  padding: 112px 20px 20px;
   background: rgba(15, 23, 42, 0.38);
 }
 
@@ -1027,6 +1036,19 @@ input:focus,
   border: 1px solid var(--border);
   border-radius: 24px;
   box-shadow: 0 28px 60px rgba(15, 23, 42, 0.2);
+}
+
+.admin-delete-user-modal-backdrop {
+  justify-content: flex-end;
+  padding:
+    120px
+    max(24px, calc((100vw - var(--max-width)) / 2 + 24px))
+    24px
+    24px;
+}
+
+.admin-delete-user-modal-card {
+  width: min(100%, 440px);
 }
 
 .admin-modal-card h4 {
@@ -1227,6 +1249,19 @@ input:focus,
 
   .admin-modal-actions .button {
     width: 100%;
+  }
+
+  .admin-modal-backdrop {
+    padding-top: 56px;
+  }
+
+  .admin-delete-user-modal-backdrop {
+    justify-content: center;
+    padding: 56px 20px 20px;
+  }
+
+  .admin-delete-user-modal-card {
+    width: min(100%, 520px);
   }
 
   .layout.is-auth-only {

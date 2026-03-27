@@ -96,11 +96,26 @@ async function approveUser(profileId) {
 }
 
 async function deleteManagedUser(userId) {
+  const {
+    data: { session },
+  } = await supabaseClient.auth.getSession();
+
   const { data, error } = await supabaseClient.functions.invoke("admin-delete-user", {
-    body: { userId }
+    body: { userId },
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+    },
   });
 
   if (error) {
+    const message = String(error.message ?? "");
+
+    if (message.includes("Failed to send a request to the Edge Function")) {
+      throw new Error(
+        "La fonction Supabase `admin-delete-user` est indisponible. Verifiez qu'elle est bien deployee sur votre projet, puis redeployez-la si besoin."
+      );
+    }
+
     throw error;
   }
 
@@ -965,8 +980,8 @@ export async function renderAdminView(container) {
           ${
             pendingDeletionProfile
               ? `
-                <div class="admin-modal-backdrop" data-close-delete-user-modal>
-                  <div class="admin-modal-card" role="dialog" aria-modal="true" aria-labelledby="deleteUserModalTitle">
+                <div class="admin-modal-backdrop admin-delete-user-modal-backdrop" data-close-delete-user-modal>
+                  <div class="admin-modal-card admin-delete-user-modal-card" role="dialog" aria-modal="true" aria-labelledby="deleteUserModalTitle">
                     <p class="section-kicker">Suppression utilisateur</p>
                     <h4 id="deleteUserModalTitle">Confirmer la suppression</h4>
                     <p class="muted">

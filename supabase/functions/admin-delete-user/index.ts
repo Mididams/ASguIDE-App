@@ -3,6 +3,12 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Content-Type": "application/json"
+};
 
 type DeleteUserRequest = {
   userId?: string;
@@ -11,7 +17,7 @@ type DeleteUserRequest = {
 function json(data: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json" }
+    headers: corsHeaders
   });
 }
 
@@ -35,6 +41,10 @@ function buildServiceClient() {
 }
 
 Deno.serve(async (request) => {
+  if (request.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   if (request.method !== "POST") {
     return json({ error: "Method not allowed" }, 405);
   }
