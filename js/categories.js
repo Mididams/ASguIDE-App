@@ -424,6 +424,7 @@ function attachSharedDocumentEvents(container, rerender, resources) {
     button.addEventListener("click", async () => {
       const resourceId = button.dataset.openResourceId;
       const targetResource = resources.find((item) => String(item.id) === String(resourceId));
+      const pendingWindow = window.open("", "_blank", "noopener,noreferrer");
 
       button.disabled = true;
       const initialLabel = button.textContent;
@@ -436,9 +437,14 @@ function attachSharedDocumentEvents(container, rerender, resources) {
           throw new Error("Aucun lien exploitable pour ce document.");
         }
 
-        window.open(openUrl, "_blank", "noopener,noreferrer");
+        if (pendingWindow) {
+          pendingWindow.location.href = openUrl;
+        } else {
+          window.location.href = openUrl;
+        }
       } catch (error) {
         console.error(error);
+        pendingWindow?.close();
         window.alert("Ouverture impossible pour ce document.");
       } finally {
         button.disabled = false;
