@@ -95,6 +95,22 @@ async function approveUser(profileId) {
   }
 }
 
+async function deleteManagedUser(userId) {
+  const { data, error } = await supabaseClient.functions.invoke("admin-delete-user", {
+    body: { userId }
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+
+  return data;
+}
+
 async function createCategory(payload) {
   const { data, error } = await supabaseClient
     .from("categories")
@@ -641,6 +657,7 @@ export async function renderAdminView(container) {
     let documentFeedback = { message: "", type: "is-success" };
     let editingCategoryId = null;
     let editingDocumentId = null;
+    let pendingUserDeletionId = null;
 
     const refreshData = async () => {
       [profiles, categories, resources] = await Promise.all([
@@ -649,6 +666,9 @@ export async function renderAdminView(container) {
         fetchResources()
       ]);
     };
+
+    const getPendingDeletionProfile = () =>
+      profiles.find((profile) => String(profile.id) === String(pendingUserDeletionId)) ?? null;
 
     const initCategorySortables = () => {
       if (!window.Sortable) {
@@ -774,10 +794,14 @@ export async function renderAdminView(container) {
       const categorySortOrderEnabled = hasCategorySortOrder(categories);
       const editingCategory = categories.find((category) => String(category.id) === String(editingCategoryId)) ?? null;
       const editingDocument = resources.find((resource) => String(resource.id) === String(editingDocumentId)) ?? null;
+      const pendingDeletionProfile = getPendingDeletionProfile();
       const editingParent = editingCategory?.parent_id
         ? categories.find((category) => String(category.id) === String(editingCategory.parent_id)) ?? null
         : null;
       const selectedCategoryType = resolveCategoryType(editingParent ?? editingCategory, categoryMap) || CATEGORY_TYPE_OPTIONS[0].value;
+      const pendingDeletionLabel = pendingDeletionProfile
+        ? `${formatName(pendingDeletionProfile)} (${pendingDeletionProfile.email ?? "email inconnu"})`
+        : "";
 
       container.innerHTML = `
         <div class="stack">
@@ -923,9 +947,14 @@ export async function renderAdminView(container) {
                             <span class="pill ${getStatusClass(getProfileStatus(profile))}">${getProfileStatus(profile)}</span>
                           </p>
                         </div>
-                        <button class="button button-ghost" type="button" data-approve-id="${profile.id}" ${getProfileStatus(profile) === "approved" ? "disabled" : ""}>
-                          Approuver
-                        </button>
+                        <div class="inline-actions">
+                          <button class="button button-ghost" type="button" data-approve-id="${profile.id}" ${getProfileStatus(profile) === "approved" ? "disabled" : ""}>
+                            Approuver
+                          </button>
+                          <button class="button button-secondary" type="button" data-delete-user-id="${profile.id}" ${String(profile.id) === String(currentUser?.id ?? "") ? "disabled title=\"Suppression de votre propre compte bloquée\"" : ""}>
+                            Supprimer
+                          </button>
+                        </div>
                       </div>
                     `
                   )
@@ -933,6 +962,30 @@ export async function renderAdminView(container) {
               </div>
             </article>
           </div>
+          ${
+            pendingDeletionProfile
+              ? `
+                <div class="admin-modal-backdrop" data-close-delete-user-modal>
+                  <div class="admin-modal-card" role="dialog" aria-modal="true" aria-labelledby="deleteUserModalTitle">
+                    <p class="section-kicker">Suppression utilisateur</p>
+                    <h4 id="deleteUserModalTitle">Confirmer la suppression</h4>
+                    <p class="muted">
+                      Vous allez supprimer <strong>${pendingDeletionLabel}</strong>.
+                      Cette action supprimera aussi son acces Auth.
+                    </p>
+                    <div class="admin-modal-actions">
+                      <button class="button button-secondary" type="button" data-cancel-delete-user>
+                        Annuler
+                      </button>
+                      <button class="button button-danger" type="button" data-confirm-delete-user="${pendingDeletionProfile.id}">
+                        Supprimer definitivement
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              `
+              : ""
+          }
         </div>
       `;
 
@@ -1011,6 +1064,65 @@ export async function renderAdminView(container) {
 
           render();
         });
+      });
+
+      container.querySelectorAll("[data-delete-user-id]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const userId = button.dataset.deleteUserId;
+          const targetProfile = profiles.find((profile) => String(profile.id) === String(userId));
+
+          if (!userId || !targetProfile) {
+            return;
+          }
+
+          if (String(userId) === String(currentUser?.id ?? "")) {
+            feedback = "Suppression de votre propre compte bloquée.";
+            feedbackClass = "is-warning";
+            render();
+            return;
+          }
+
+          pendingUserDeletionId = userId;
+          render();
+        });
+      });
+
+      container.querySelector("[data-cancel-delete-user]")?.addEventListener("click", () => {
+        pendingUserDeletionId = null;
+        render();
+      });
+
+      container.querySelector("[data-close-delete-user-modal]")?.addEventListener("click", (event) => {
+        if (event.target === event.currentTarget) {
+          pendingUserDeletionId = null;
+          render();
+        }
+      });
+
+      container.querySelector("[data-confirm-delete-user]")?.addEventListener("click", async (event) => {
+        const button = event.currentTarget;
+        const userId = button.dataset.confirmDeleteUser;
+
+        if (!userId) {
+          return;
+        }
+
+        button.disabled = true;
+
+        try {
+          await deleteManagedUser(userId);
+          pendingUserDeletionId = null;
+          await refreshData();
+          feedback = "Utilisateur supprime avec succes.";
+          feedbackClass = "is-success";
+        } catch (error) {
+          console.error(error);
+          pendingUserDeletionId = null;
+          feedback = `Suppression impossible : ${error.message ?? "erreur inconnue"}`;
+          feedbackClass = "is-error";
+        }
+
+        render();
       });
 
       container.querySelectorAll("[data-category-edit]").forEach((button) => {
