@@ -635,6 +635,24 @@ input:focus,
   padding: 14px 16px;
 }
 
+.compact-card-button {
+  appearance: none;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.compact-card-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08);
+  border-color: rgba(15, 118, 110, 0.22);
+}
+
+.compact-card-button:focus-visible {
+  outline: 3px solid rgba(15, 118, 110, 0.18);
+  outline-offset: 2px;
+}
+
 .categories-summary {
   display: grid;
 }

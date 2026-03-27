@@ -472,6 +472,16 @@ function registerEvents() {
       renderCurrentView();
     }
   });
+
+  window.addEventListener("app:navigate", (event) => {
+    const view = event?.detail?.view;
+
+    if (!view || !navigationMap.has(view)) {
+      return;
+    }
+
+    navigateTo(view);
+  });
 }
 
 async function initApp() {

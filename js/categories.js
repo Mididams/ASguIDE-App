@@ -594,10 +594,10 @@ export async function renderCategoriesView(container, options = {}) {
             </div>
 
             <div class="category-toolbar-stats">
-              <div class="info-card compact-card">
+              <button class="info-card compact-card compact-card-button" type="button" data-open-favorites-view>
                 <p class="inline-label">Favoris</p>
                 <strong>${favoriteIds.length}</strong>
-              </div>
+              </button>
               <div class="info-card compact-card">
                 <p class="inline-label">Documents</p>
                 <strong>${documents.length}</strong>
@@ -756,6 +756,10 @@ export async function renderCategoriesView(container, options = {}) {
       container.querySelector("[data-mobile-stage-back]")?.addEventListener("click", () => {
         mobilePanel = mobilePanel === "documents" && subcategories.length ? "subcategories" : null;
         render();
+      });
+
+      container.querySelector("[data-open-favorites-view]")?.addEventListener("click", () => {
+        window.dispatchEvent(new CustomEvent("app:navigate", { detail: { view: "favorites" } }));
       });
 
       attachSharedDocumentEvents(container, render, resources);
