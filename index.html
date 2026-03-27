@@ -44,14 +44,23 @@
       <section id="authPanel" class="panel auth-panel">
         <div class="panel-header">
           <div>
-            <p class="section-kicker">Connexion sécurisée</p>
-            <h2>Accès réservé à l'équipe</h2>
+            <p id="authKicker" class="section-kicker">Connexion sécurisée</p>
+            <h2 id="authTitle">Accès réservé à l'équipe</h2>
           </div>
         </div>
 
-        <p class="muted">
+        <p id="authDescription" class="muted">
           Connectez-vous avec votre compte Supabase existant pour accéder aux contenus du service.
         </p>
+
+        <div class="auth-mode-toggle" role="tablist" aria-label="Choix du formulaire d'authentification">
+          <button id="showLoginBtn" class="auth-mode-button is-active" type="button" role="tab" aria-selected="true">
+            Connexion
+          </button>
+          <button id="showSignupBtn" class="auth-mode-button" type="button" role="tab" aria-selected="false">
+            Créer un compte
+          </button>
+        </div>
 
         <form id="loginForm" class="auth-form">
           <label>
@@ -66,6 +75,45 @@
 
           <button class="button button-primary" type="submit">Se connecter</button>
         </form>
+
+        <form id="signupForm" class="auth-form hidden">
+          <div class="auth-grid">
+            <label>
+              <span>Prénom</span>
+              <input id="signupFirstNameInput" name="firstName" type="text" autocomplete="given-name" required>
+            </label>
+
+            <label>
+              <span>Nom</span>
+              <input id="signupLastNameInput" name="lastName" type="text" autocomplete="family-name" required>
+            </label>
+          </div>
+
+          <label>
+            <span>Email</span>
+            <input id="signupEmailInput" name="email" type="email" autocomplete="email" required>
+          </label>
+
+          <label>
+            <span>Mot de passe</span>
+            <input id="signupPasswordInput" name="password" type="password" autocomplete="new-password" required>
+          </label>
+
+          <label>
+            <span>Confirmation du mot de passe</span>
+            <input id="signupPasswordConfirmInput" name="passwordConfirm" type="password" autocomplete="new-password" required>
+          </label>
+
+          <button class="button button-primary" type="submit">Créer mon compte</button>
+        </form>
+
+        <div class="auth-switch-row">
+          <p id="loginSwitchText" class="muted">Pas encore de compte ?</p>
+          <button id="signupLinkBtn" class="button button-link" type="button">Créer un compte</button>
+          <div id="loginLinkRow" class="hidden">
+            <button id="loginLinkBtn" class="button button-link" type="button">J'ai déjà un compte</button>
+          </div>
+        </div>
 
         <p id="authMessage" class="feedback hidden"></p>
       </section>

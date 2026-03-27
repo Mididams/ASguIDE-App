@@ -1,4 +1,5 @@
 import { supabaseClient } from "./config.js";
+import { getProfileApprovalState } from "./profiles.js";
 import {
   deleteFileFromStorage,
   deleteResource,
@@ -36,7 +37,7 @@ function compareBySortOrder(a, b) {
 async function fetchProfiles() {
   const { data, error } = await supabaseClient
     .from("profiles")
-    .select("id, email, first_name, last_name, role, status")
+    .select("id, email, first_name, last_name, role, status, approved")
     .order("email", { ascending: true });
 
   if (error) {
@@ -86,7 +87,7 @@ async function fetchCurrentUser() {
 async function approveUser(profileId) {
   const { error } = await supabaseClient
     .from("profiles")
-    .update({ status: "approved" })
+    .update({ approved: true, status: "approved" })
     .eq("id", profileId);
 
   if (error) {
@@ -166,6 +167,10 @@ function getStatusClass(status) {
   if (status === "approved") return "is-approved";
   if (status === "rejected") return "is-rejected";
   return "is-pending";
+}
+
+function getProfileStatus(profile) {
+  return getProfileApprovalState(profile);
 }
 
 function getRoleClass(role) {
@@ -915,10 +920,10 @@ export async function renderAdminView(container) {
                           <p>${profile.email}</p>
                           <p class="admin-meta">
                             <span class="pill ${getRoleClass(profile.role)}">${profile.role}</span>
-                            <span class="pill ${getStatusClass(profile.status)}">${profile.status}</span>
+                            <span class="pill ${getStatusClass(getProfileStatus(profile))}">${getProfileStatus(profile)}</span>
                           </p>
                         </div>
-                        <button class="button button-ghost" type="button" data-approve-id="${profile.id}" ${profile.status === "approved" ? "disabled" : ""}>
+                        <button class="button button-ghost" type="button" data-approve-id="${profile.id}" ${getProfileStatus(profile) === "approved" ? "disabled" : ""}>
                           Approuver
                         </button>
                       </div>

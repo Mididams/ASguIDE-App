@@ -216,6 +216,53 @@ input {
   max-width: 520px;
 }
 
+.auth-mode-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 22px 0 18px;
+  padding: 6px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.auth-mode-button {
+  min-height: 42px;
+  padding: 0 14px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.auth-mode-button.is-active {
+  color: var(--primary-strong);
+  background: #fff;
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
+}
+
+.auth-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.auth-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.auth-switch-row p {
+  margin: 0;
+}
+
 .auth-form,
 .stack,
 .nav-list,
@@ -297,6 +344,17 @@ input:focus,
 .button:disabled {
   opacity: 0.65;
   cursor: not-allowed;
+}
+
+.button-link {
+  min-height: auto;
+  padding: 0;
+  color: var(--primary);
+  background: transparent;
+  border-radius: 0;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .muted,
@@ -1110,6 +1168,10 @@ input:focus,
   .category-toolbar-stats,
   .document-actions {
     width: 100%;
+  }
+
+  .auth-grid {
+    grid-template-columns: 1fr;
   }
 
   .favorite-toggle {

@@ -1,10 +1,19 @@
 import {
-  getAuthContext,
-  getProfileDisplayName,
+  getFriendlyAuthError,
+  getSession,
   signIn,
   signOut,
+  signUp,
   subscribeToAuthChanges
 } from "./auth.js";
+import {
+  ensureProfile,
+  fetchProfile,
+  getProfileApprovalState,
+  getProfileDisplayName,
+  getProfileStatusLabel,
+  isProfileApproved
+} from "./profiles.js";
 import {
   getFavoritesCount,
   renderCategoriesView,
@@ -17,7 +26,8 @@ const state = {
   session: null,
   user: null,
   profile: null,
-  currentView: "medications"
+  currentView: "medications",
+  authMode: "login"
 };
 
 const NAV_ITEMS = [
@@ -71,14 +81,42 @@ const VIEW_CONFIG = {
 
 const navigationMap = new Map([...NAV_ITEMS, VIEW_CONFIG.admin].map((item) => [item.id, item]));
 
+const AUTH_COPY = {
+  login: {
+    kicker: "Connexion sécurisée",
+    title: "Accès réservé à l'équipe",
+    description: "Connectez-vous avec votre compte Supabase existant pour accéder aux contenus du service."
+  },
+  signup: {
+    kicker: "Création de compte",
+    title: "Demande d'accès à l'application",
+    description: "Créez votre compte puis attendez la validation d'un administrateur avant d'accéder aux ressources."
+  }
+};
+
 const elements = {
   mainLayout: document.getElementById("mainLayout"),
   authPanel: document.getElementById("authPanel"),
   waitingPanel: document.getElementById("waitingPanel"),
   appPanel: document.getElementById("appPanel"),
+  authKicker: document.getElementById("authKicker"),
+  authTitle: document.getElementById("authTitle"),
+  authDescription: document.getElementById("authDescription"),
   loginForm: document.getElementById("loginForm"),
+  signupForm: document.getElementById("signupForm"),
+  showLoginBtn: document.getElementById("showLoginBtn"),
+  showSignupBtn: document.getElementById("showSignupBtn"),
+  signupLinkBtn: document.getElementById("signupLinkBtn"),
+  loginLinkBtn: document.getElementById("loginLinkBtn"),
+  loginSwitchText: document.getElementById("loginSwitchText"),
+  loginLinkRow: document.getElementById("loginLinkRow"),
   emailInput: document.getElementById("emailInput"),
   passwordInput: document.getElementById("passwordInput"),
+  signupFirstNameInput: document.getElementById("signupFirstNameInput"),
+  signupLastNameInput: document.getElementById("signupLastNameInput"),
+  signupEmailInput: document.getElementById("signupEmailInput"),
+  signupPasswordInput: document.getElementById("signupPasswordInput"),
+  signupPasswordConfirmInput: document.getElementById("signupPasswordConfirmInput"),
   authMessage: document.getElementById("authMessage"),
   userStatus: document.getElementById("userStatus"),
   logoutBtn: document.getElementById("logoutBtn"),
@@ -97,21 +135,49 @@ function setFeedback(message = "", type = "is-error") {
   }
 }
 
+function setAuthMode(mode, options = {}) {
+  state.authMode = mode;
+
+  const copy = AUTH_COPY[mode] ?? AUTH_COPY.login;
+  const isLoginMode = mode === "login";
+
+  elements.authKicker.textContent = copy.kicker;
+  elements.authTitle.textContent = copy.title;
+  elements.authDescription.textContent = copy.description;
+
+  elements.loginForm.classList.toggle("hidden", !isLoginMode);
+  elements.signupForm.classList.toggle("hidden", isLoginMode);
+
+  elements.showLoginBtn.classList.toggle("is-active", isLoginMode);
+  elements.showLoginBtn.setAttribute("aria-selected", String(isLoginMode));
+  elements.showSignupBtn.classList.toggle("is-active", !isLoginMode);
+  elements.showSignupBtn.setAttribute("aria-selected", String(!isLoginMode));
+
+  elements.loginSwitchText.classList.toggle("hidden", !isLoginMode);
+  elements.signupLinkBtn.classList.toggle("hidden", !isLoginMode);
+  elements.loginLinkRow.classList.toggle("hidden", isLoginMode);
+
+  if (!options.preserveFeedback) {
+    setFeedback("");
+  }
+}
+
 function getNavigationItems() {
   return NAV_ITEMS;
 }
 
 function updateUserStatus() {
   const label = state.user ? getProfileDisplayName(state.profile) : "Non connecté";
+  const approvalState = getProfileApprovalState(state.profile);
   const info = state.user
-    ? `${state.profile?.role ?? "utilisateur"} - statut : ${state.profile?.status ?? "inconnu"}`
+    ? `${state.profile?.role ?? "utilisateur"} - accès ${getProfileStatusLabel(state.profile)}`
     : "Veuillez vous identifier";
 
   const dotClass = !state.user
     ? "is-offline"
-    : state.profile?.status === "approved"
+    : approvalState === "approved"
       ? "is-online"
-      : state.profile?.status === "rejected"
+      : approvalState === "rejected"
         ? "is-danger"
         : "is-warning";
 
@@ -204,7 +270,8 @@ function renderAccessState() {
   updateUserStatus();
 
   const isConnected = Boolean(state.user);
-  const isApproved = state.profile?.status === "approved";
+  const approvalState = getProfileApprovalState(state.profile);
+  const isApproved = isProfileApproved(state.profile);
   const isAdmin = state.profile?.role === "admin";
 
   elements.logoutBtn.classList.toggle("hidden", !isConnected);
@@ -212,13 +279,15 @@ function renderAccessState() {
   elements.authPanel.classList.toggle("hidden", isConnected);
   elements.waitingPanel.classList.toggle("hidden", !isConnected || isApproved);
   elements.appPanel.classList.toggle("hidden", !isConnected || !isApproved);
-  elements.mainLayout.classList.toggle("is-auth-only", !isConnected);
+  elements.mainLayout.classList.toggle("is-auth-only", !isConnected || !isApproved);
 
   if (isConnected && !isApproved) {
+    elements.mainContent.innerHTML = "";
+    elements.mainNav.innerHTML = "";
     elements.waitingMessage.textContent =
-      state.profile?.status === "rejected"
+      approvalState === "rejected"
         ? "Votre accès a été refusé. Contactez un administrateur du service."
-        : "Votre compte est connecté mais doit encore être validé par un administrateur.";
+        : "Compte en attente de validation. Vous êtes bien connecté, mais l'accès aux ressources reste bloqué jusqu'à approbation.";
   }
 
   if (isConnected && isApproved) {
@@ -228,14 +297,30 @@ function renderAccessState() {
 }
 
 async function refreshAuthState() {
-  const { session, user, profile, error } = await getAuthContext();
+  const { session, error: sessionError } = await getSession();
+
+  if (sessionError || !session?.user) {
+    state.session = null;
+    state.user = null;
+    state.profile = null;
+    renderAccessState();
+    return;
+  }
 
   state.session = session;
-  state.user = user;
+  state.user = session.user;
+
+  const { error: ensureError } = await ensureProfile(session.user);
+
+  if (ensureError) {
+    console.error(ensureError);
+  }
+
+  const { profile, error: profileError } = await fetchProfile(session.user.id);
   state.profile = profile;
 
-  if (error && user) {
-    console.error(error);
+  if (profileError) {
+    console.error(profileError);
   }
 
   renderAccessState();
@@ -261,7 +346,7 @@ async function handleLoginSubmit(event) {
     const { error } = await signIn(email, password);
 
     if (error) {
-      setFeedback(error.message, "is-error");
+      setFeedback(getFriendlyAuthError(error, "login"), "is-error");
       return;
     }
 
@@ -277,17 +362,95 @@ async function handleLoginSubmit(event) {
   }
 }
 
+async function handleSignupSubmit(event) {
+  event.preventDefault();
+  setFeedback("");
+
+  const firstName = elements.signupFirstNameInput.value.trim();
+  const lastName = elements.signupLastNameInput.value.trim();
+  const email = elements.signupEmailInput.value.trim();
+  const password = elements.signupPasswordInput.value;
+  const passwordConfirm = elements.signupPasswordConfirmInput.value;
+
+  if (!firstName || !lastName || !email || !password || !passwordConfirm) {
+    setFeedback("Tous les champs d'inscription sont obligatoires.", "is-warning");
+    return;
+  }
+
+  if (password.length < 6) {
+    setFeedback("Le mot de passe est trop court. Utilisez au moins 6 caractères.", "is-warning");
+    return;
+  }
+
+  if (password !== passwordConfirm) {
+    setFeedback("Les mots de passe ne correspondent pas.", "is-warning");
+    return;
+  }
+
+  const submitButton = elements.signupForm.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+  submitButton.textContent = "Création...";
+
+  try {
+    const { data, error } = await signUp({
+      firstName,
+      lastName,
+      email,
+      password
+    });
+
+    if (error) {
+      setFeedback(getFriendlyAuthError(error, "signup"), "is-error");
+      return;
+    }
+
+    if (data?.session?.user) {
+      const { error: ensureError } = await ensureProfile(data.session.user);
+
+      if (ensureError) {
+        console.error(ensureError);
+      }
+    }
+
+    elements.signupForm.reset();
+
+    if (data?.user && !data?.session) {
+      setAuthMode("login", { preserveFeedback: true });
+      setFeedback(
+        "Compte créé. Vérifiez votre boîte mail pour confirmer votre adresse, puis attendez la validation de votre accès.",
+        "is-success"
+      );
+      return;
+    }
+
+    setFeedback("Compte créé. Votre accès sera activé après validation.", "is-success");
+    await refreshAuthState();
+  } catch (error) {
+    console.error(error);
+    setFeedback("Erreur réseau. Vérifiez votre connexion et réessayez.", "is-error");
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = "Créer mon compte";
+  }
+}
+
 async function handleLogout() {
   await signOut();
   state.currentView = NAV_ITEMS[0].id;
+  setAuthMode("login", { preserveFeedback: true });
   setFeedback("");
   await refreshAuthState();
 }
 
 function registerEvents() {
   elements.loginForm.addEventListener("submit", handleLoginSubmit);
+  elements.signupForm.addEventListener("submit", handleSignupSubmit);
   elements.logoutBtn.addEventListener("click", handleLogout);
   elements.adminBtn.addEventListener("click", () => navigateTo("admin"));
+  elements.showLoginBtn.addEventListener("click", () => setAuthMode("login"));
+  elements.showSignupBtn.addEventListener("click", () => setAuthMode("signup"));
+  elements.signupLinkBtn.addEventListener("click", () => setAuthMode("signup"));
+  elements.loginLinkBtn?.addEventListener("click", () => setAuthMode("login"));
 
   subscribeToAuthChanges(async () => {
     await refreshAuthState();
@@ -303,6 +466,7 @@ function registerEvents() {
 }
 
 async function initApp() {
+  setAuthMode("login", { preserveFeedback: true });
   registerEvents();
   await refreshAuthState();
 }

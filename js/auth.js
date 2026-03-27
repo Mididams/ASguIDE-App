@@ -4,6 +4,20 @@ export async function signIn(email, password) {
   return supabaseClient.auth.signInWithPassword({ email, password });
 }
 
+export async function signUp({ firstName, lastName, email, password }) {
+  return supabaseClient.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        first_name: firstName,
+        last_name: lastName,
+        full_name: [firstName, lastName].filter(Boolean).join(" ").trim()
+      }
+    }
+  });
+}
+
 export async function signOut() {
   return supabaseClient.auth.signOut();
 }
@@ -55,11 +69,33 @@ export function subscribeToAuthChanges(callback) {
   return subscription;
 }
 
-export function getProfileDisplayName(profile) {
-  if (!profile) {
-    return "Utilisateur";
+export function getFriendlyAuthError(error, context = "login") {
+  const message = String(error?.message ?? "").toLowerCase();
+  const status = Number(error?.status ?? 0);
+
+  if (message.includes("invalid login credentials")) {
+    return "Email ou mot de passe incorrect.";
   }
 
-  const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim();
-  return fullName || profile.email || "Utilisateur";
+  if (message.includes("user already registered") || message.includes("already been registered")) {
+    return "Un compte existe déjà avec cette adresse email.";
+  }
+
+  if (message.includes("password should be at least") || message.includes("password is too short")) {
+    return "Le mot de passe est trop court. Utilisez au moins 6 caractères.";
+  }
+
+  if (message.includes("email not confirmed")) {
+    return "Adresse email non confirmée. Vérifiez votre boîte mail avant de vous connecter.";
+  }
+
+  if (message.includes("failed to fetch") || message.includes("network") || status === 0) {
+    return "Erreur réseau. Vérifiez votre connexion et réessayez.";
+  }
+
+  if (context === "signup") {
+    return error?.message || "Inscription impossible pour le moment.";
+  }
+
+  return error?.message || "Connexion impossible pour le moment.";
 }
