@@ -117,6 +117,7 @@ const elements = {
   signupEmailInput: document.getElementById("signupEmailInput"),
   signupPasswordInput: document.getElementById("signupPasswordInput"),
   signupPasswordConfirmInput: document.getElementById("signupPasswordConfirmInput"),
+  signupPrivacyConsent: document.getElementById("signupPrivacyConsent"),
   authMessage: document.getElementById("authMessage"),
   userStatus: document.getElementById("userStatus"),
   logoutBtn: document.getElementById("logoutBtn"),
@@ -371,9 +372,15 @@ async function handleSignupSubmit(event) {
   const email = elements.signupEmailInput.value.trim();
   const password = elements.signupPasswordInput.value;
   const passwordConfirm = elements.signupPasswordConfirmInput.value;
+  const privacyConsentAccepted = Boolean(elements.signupPrivacyConsent?.checked);
 
   if (!firstName || !lastName || !email || !password || !passwordConfirm) {
     setFeedback("Tous les champs d'inscription sont obligatoires.", "is-warning");
+    return;
+  }
+
+  if (!privacyConsentAccepted) {
+    setFeedback("Veuillez accepter la politique de confidentialité pour créer votre compte.", "is-warning");
     return;
   }
 
