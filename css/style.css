@@ -973,21 +973,31 @@ input:focus,
   }
 
   .topbar {
-    align-items: flex-start;
+    align-items: center;
     flex-direction: column;
     min-height: unset;
   }
 
   .topbar-brand {
-    align-items: flex-start;
+    align-items: center;
     flex-direction: column;
     gap: 8px;
+    width: 100%;
+    text-align: center;
+  }
+
+  .topbar .eyebrow {
+    text-align: center;
   }
 
   .topbar-brand h1 {
     position: static;
     transform: none;
-    text-align: left;
+    text-align: center;
+  }
+
+  .topbar-actions {
+    width: 100%;
   }
 }
 
@@ -1017,11 +1027,20 @@ input:focus,
   .app-nav {
     padding: 14px;
     gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    overflow-x: visible;
   }
 
   .nav-button {
-    flex: 1 1 100%;
+    flex: 1 1 calc(50% - 10px);
     min-width: 0;
+    min-height: 54px;
+    padding: 12px 10px;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.2;
+    font-size: 0.95rem;
   }
 
   .category-toolbar-stats,
