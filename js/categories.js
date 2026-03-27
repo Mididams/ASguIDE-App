@@ -575,12 +575,8 @@ export async function renderCategoriesView(container, options = {}) {
           ${renderSearchResults(searchResults, searchQuery)}
 
           <div class="categories-summary">
-            <div class="info-card">
-              <p class="section-kicker">Navigation rapide</p>
+            <div class="info-card breadcrumb-card">
               <strong>${breadcrumb}</strong>
-              <p class="muted">
-                ${rootCategories.length} categorie(s), ${subcategories.length} sous-categorie(s), ${documents.length} document(s).
-              </p>
             </div>
           </div>
 

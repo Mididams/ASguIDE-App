@@ -487,6 +487,18 @@ input:focus,
   display: grid;
 }
 
+.breadcrumb-card {
+  padding: 10px 16px;
+  text-align: center;
+}
+
+.breadcrumb-card strong {
+  display: block;
+  margin-top: 0;
+  font-size: clamp(1.1rem, 1.6vw, 1.45rem);
+  line-height: 1.2;
+}
+
 .search-results-panel {
   padding: 18px;
   background: var(--surface-strong);
