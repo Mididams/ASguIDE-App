@@ -3,7 +3,7 @@
 
 create table if not exists public.user_favorites (
   user_id uuid not null references public.profiles (id) on delete cascade,
-  resource_id bigint not null references public.resources (id) on delete cascade,
+  resource_id uuid not null references public.resources (id) on delete cascade,
   created_at timestamptz not null default timezone('utc', now()),
   primary key (user_id, resource_id)
 );
