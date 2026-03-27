@@ -24,3 +24,9 @@
 - verifier que la fonction est bien deployee
 - verifier qu'elle a bien ete redeployee apres modification
 - verifier les logs de la fonction dans Supabase
+
+## Si la fonction repond `401 Invalid JWT`
+
+- verifier dans Supabase que l'option `Verify JWT with legacy secret` est desactivee pour cette Edge Function
+- si cette option est activee alors que la fonction verifie deja correctement l'utilisateur via le header `Authorization`, Supabase peut rejeter la requete avant meme d'executer votre code
+- c'est un piege classique avec les Edge Functions: on croit que le probleme vient du code, alors que le refus est fait en amont par Supabase
