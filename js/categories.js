@@ -640,7 +640,20 @@ export async function renderCategoriesView(container, options = {}) {
 
       container.querySelector("#categorySearchInput")?.addEventListener("input", (event) => {
         searchQuery = event.target.value;
+        const cursorPosition = event.target.selectionStart ?? searchQuery.length;
+
         render();
+
+        window.requestAnimationFrame(() => {
+          const refreshedSearchInput = container.querySelector("#categorySearchInput");
+
+          if (!refreshedSearchInput) {
+            return;
+          }
+
+          refreshedSearchInput.focus();
+          refreshedSearchInput.setSelectionRange(cursorPosition, cursorPosition);
+        });
       });
 
       container.querySelectorAll("[data-search-root-id]").forEach((button) => {
