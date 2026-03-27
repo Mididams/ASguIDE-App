@@ -469,6 +469,10 @@ function enhanceMobileFocus(container) {
   }
 }
 
+function isMobileCategoriesLayout() {
+  return window.innerWidth <= 960;
+}
+
 export async function renderFavoritesView(container) {
   container.innerHTML = '<p class="muted">Chargement des favoris...</p>';
 
@@ -526,6 +530,7 @@ export async function renderCategoriesView(container, options = {}) {
     let selectedRootId = rootCategories[0]?.id ?? null;
     let selectedSubcategoryId = null;
     let searchQuery = "";
+    let mobilePanel = null;
 
     function render() {
       const favoriteIds = getStoredFavoriteIds();
@@ -549,6 +554,53 @@ export async function renderCategoriesView(container, options = {}) {
         : selectedRoot
           ? `Documents de ${selectedRoot.name}`
           : "Aucun document selectionne";
+      const mobilePanelMarkup = isMobileCategoriesLayout() && mobilePanel
+        ? `
+          <div class="mobile-stage-overlay" data-mobile-stage-close>
+            <div class="mobile-stage-sheet" role="dialog" aria-modal="true" aria-label="${mobilePanel === "subcategories" ? "Sous-categories" : "Documents"}">
+              <div class="mobile-stage-header">
+                <button class="button button-secondary button-small" type="button" data-mobile-stage-back>
+                  ${mobilePanel === "documents" && subcategories.length ? "Retour" : "Fermer"}
+                </button>
+                <strong>${mobilePanel === "subcategories" ? "Sous-categories" : "Documents"}</strong>
+                <button class="button button-ghost button-small" type="button" data-mobile-stage-close-button>
+                  Fermer
+                </button>
+              </div>
+              <p class="mobile-stage-breadcrumb">${breadcrumb}</p>
+              ${
+                mobilePanel === "subcategories"
+                  ? (
+                    subcategories.length
+                      ? renderSelectableList(subcategories, selectedSubcategoryId, {
+                          buttonAttr: "data-subcategory-id",
+                          emptyMessage: "Aucune sous-categorie disponible.",
+                          helperText: (subcategory) => `${countDocumentsForCategory(resources, subcategory.id)} document(s)`
+                        })
+                      : `
+                        <div class="empty-panel">
+                          <p class="empty-state">${hasRootCategories ? "Aucune sous-categorie pour cette categorie." : "Aucune sous-categorie disponible."}</p>
+                          <p class="muted">${hasRootCategories ? "Les documents sont disponibles dans l'etape suivante." : "Selectionnez une categorie des qu'elle sera disponible."}</p>
+                        </div>
+                      `
+                  )
+                  : `
+                      <p class="column-context">${documentsTitle}</p>
+                      ${renderDocuments(
+                        documents,
+                        favoriteIds,
+                        !hasRootCategories
+                          ? "Aucun document disponible."
+                          : selectedSubcategory
+                            ? "Aucun document n'est lie a cette sous-categorie."
+                            : "Aucun document n'est lie a cette categorie."
+                      )}
+                    `
+              }
+            </div>
+          </div>
+        `
+        : "";
 
       container.innerHTML = `
         <div class="categories-v2">
@@ -641,6 +693,7 @@ export async function renderCategoriesView(container, options = {}) {
               )}
             </section>
           </div>
+          ${mobilePanelMarkup}
         </div>
       `;
 
@@ -667,8 +720,18 @@ export async function renderCategoriesView(container, options = {}) {
           selectedRootId = button.dataset.searchRootId;
           selectedSubcategoryId = button.dataset.searchSubcategoryId || null;
           searchQuery = "";
+          mobilePanel = isMobileCategoriesLayout()
+            ? (selectedSubcategoryId ? "documents" : null)
+            : null;
           render();
-          enhanceMobileFocus(container);
+
+          if (isMobileCategoriesLayout()) {
+            const refreshedSubcategories = selectedRootId ? getDirectChildren(categories, selectedRootId) : [];
+            mobilePanel = selectedSubcategoryId ? "documents" : (refreshedSubcategories.length ? "subcategories" : "documents");
+            render();
+          } else {
+            enhanceMobileFocus(container);
+          }
         });
       });
 
@@ -676,17 +739,48 @@ export async function renderCategoriesView(container, options = {}) {
         button.addEventListener("click", () => {
           selectedRootId = button.dataset.rootId;
           selectedSubcategoryId = null;
+          mobilePanel = null;
           render();
-          enhanceMobileFocus(container);
+
+          if (isMobileCategoriesLayout()) {
+            const refreshedSubcategories = selectedRootId ? getDirectChildren(categories, selectedRootId) : [];
+            mobilePanel = refreshedSubcategories.length ? "subcategories" : "documents";
+            render();
+          } else {
+            enhanceMobileFocus(container);
+          }
         });
       });
 
       container.querySelectorAll("[data-subcategory-id]").forEach((button) => {
         button.addEventListener("click", () => {
           selectedSubcategoryId = button.dataset.subcategoryId;
+          mobilePanel = isMobileCategoriesLayout() ? "documents" : null;
           render();
-          enhanceMobileFocus(container);
+
+          if (!isMobileCategoriesLayout()) {
+            enhanceMobileFocus(container);
+          }
         });
+      });
+
+      container.querySelector("[data-mobile-stage-close]")?.addEventListener("click", (event) => {
+        if (event.target !== event.currentTarget) {
+          return;
+        }
+
+        mobilePanel = null;
+        render();
+      });
+
+      container.querySelector("[data-mobile-stage-close-button]")?.addEventListener("click", () => {
+        mobilePanel = null;
+        render();
+      });
+
+      container.querySelector("[data-mobile-stage-back]")?.addEventListener("click", () => {
+        mobilePanel = mobilePanel === "documents" && subcategories.length ? "subcategories" : null;
+        render();
       });
 
       attachSharedDocumentEvents(container, render, resources);
