@@ -123,6 +123,20 @@ async function updateCategory(categoryId, payload) {
   return data;
 }
 
+async function updateCategorySortOrders(entries) {
+  if (!entries.length) {
+    return;
+  }
+
+  const { error } = await supabaseClient
+    .from("categories")
+    .upsert(entries, { onConflict: "id" });
+
+  if (error) {
+    throw error;
+  }
+}
+
 async function removeCategory(categoryId) {
   const { error } = await supabaseClient
     .from("categories")
@@ -225,6 +239,28 @@ function getNextSortOrder(items) {
 
 function hasCategorySortOrder(categories) {
   return categories.some((category) => Object.prototype.hasOwnProperty.call(category, "sort_order"));
+}
+
+function buildCategorySortPayload(categoryIds, categories) {
+  const categoryMap = new Map(categories.map((category) => [String(category.id), category]));
+
+  return categoryIds
+    .map((categoryId, index) => {
+      const category = categoryMap.get(String(categoryId));
+
+      if (!category) {
+        return null;
+      }
+
+      return {
+        id: category.id,
+        parent_id: category.parent_id,
+        type: category.type,
+        name: category.name,
+        sort_order: index + 1
+      };
+    })
+    .filter(Boolean);
 }
 
 function getUploadFeedbackMarkup(feedback) {
@@ -337,6 +373,20 @@ async function swapCategoryOrder(categories, categoryId, direction) {
   ]);
 }
 
+async function reorderCategoryGroup(categories, orderedCategoryIds) {
+  if (!hasCategorySortOrder(categories)) {
+    throw new Error("La colonne categories.sort_order est absente en base.");
+  }
+
+  const payload = buildCategorySortPayload(orderedCategoryIds, categories);
+
+  if (!payload.length) {
+    return;
+  }
+
+  await updateCategorySortOrders(payload);
+}
+
 async function swapResourceOrder(resources, resourceId, direction) {
   const target = resources.find((resource) => String(resource.id) === String(resourceId));
 
@@ -381,13 +431,20 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
           </div>
           ${
             roots.length
-              ? roots
-                  .map((rootCategory) => {
-                    const children = getChildren(categories, rootCategory.id);
-                    const rootDocuments = getResourcesForCategory(resources, rootCategory.id);
+              ? `
+                  <div
+                    class="admin-category-sort-list"
+                    data-category-sort-list
+                    data-sort-parent=""
+                    data-sort-type="${typeOption.value}"
+                  >
+                    ${roots
+                      .map((rootCategory) => {
+                        const children = getChildren(categories, rootCategory.id);
+                        const rootDocuments = getResourcesForCategory(resources, rootCategory.id);
 
-                    return `
-                      <article class="admin-entity-card">
+                        return `
+                      <article class="admin-entity-card" data-category-sort-item data-category-id="${rootCategory.id}">
                         <div class="admin-entity-header">
                           <div>
                             <p class="section-kicker">Categorie</p>
@@ -398,6 +455,7 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
                           </div>
 
                           <div class="inline-actions">
+                            <span class="admin-drag-handle" title="${categorySortOrderEnabled ? "Glisser pour reordonner" : "Migration sort_order requise"}">⋮⋮</span>
                             <button class="button button-secondary button-small" type="button" data-category-move-up="${rootCategory.id}" ${categorySortOrderEnabled ? "" : 'title="Migration sort_order requise"'}>
                               ↑ Monter
                             </button>
@@ -412,13 +470,18 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
                         ${
                           children.length
                             ? `
-                              <div class="admin-subtree">
+                              <div
+                                class="admin-subtree admin-category-sort-list"
+                                data-category-sort-list
+                                data-sort-parent="${rootCategory.id}"
+                                data-sort-type="${typeOption.value}"
+                              >
                                 ${children
                                   .map((child) => {
                                     const childDocuments = getResourcesForCategory(resources, child.id);
 
                                     return `
-                                      <div class="admin-subentity-card">
+                                      <div class="admin-subentity-card" data-category-sort-item data-category-id="${child.id}">
                                         <div class="admin-subentity-header">
                                           <div>
                                             <strong>${child.name}</strong>
@@ -426,6 +489,7 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
                                           </div>
 
                                           <div class="inline-actions">
+                                            <span class="admin-drag-handle" title="${categorySortOrderEnabled ? "Glisser pour reordonner" : "Migration sort_order requise"}">⋮⋮</span>
                                             <button class="button button-secondary button-small" type="button" data-category-move-up="${child.id}" ${categorySortOrderEnabled ? "" : 'title="Migration sort_order requise"'}>
                                               ↑
                                             </button>
@@ -474,8 +538,10 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
                         }
                       </article>
                     `;
-                  })
-                  .join("")
+                      })
+                      .join("")}
+                  </div>
+                `
               : '<p class="empty-state">Aucune categorie enregistree pour ce type.</p>'
           }
         </section>
@@ -508,6 +574,66 @@ export async function renderAdminView(container) {
         fetchCategories(),
         fetchResources()
       ]);
+    };
+
+    const initCategorySortables = () => {
+      if (!window.Sortable) {
+        categoryFeedback = {
+          message: "SortableJS n'est pas charge. Le drag & drop est indisponible.",
+          type: "is-warning"
+        };
+        return;
+      }
+
+      container.querySelectorAll("[data-category-sort-list]").forEach((list) => {
+        if (list._sortableInstance) {
+          list._sortableInstance.destroy();
+        }
+
+        const sortParent = list.dataset.sortParent ?? "";
+        const sortType = list.dataset.sortType ?? "";
+
+        list._sortableInstance = window.Sortable.create(list, {
+          animation: 180,
+          easing: "cubic-bezier(0.2, 0, 0, 1)",
+          handle: ".admin-drag-handle",
+          draggable: "[data-category-sort-item]",
+          ghostClass: "is-drag-ghost",
+          chosenClass: "is-drag-chosen",
+          dragClass: "is-drag-active",
+          group: {
+            name: `category-${sortType}-${sortParent}`,
+            pull: false,
+            put: false
+          },
+          onEnd: async () => {
+            const orderedCategoryIds = Array.from(list.querySelectorAll("[data-category-sort-item]"))
+              .map((item) => item.dataset.categoryId)
+              .filter(Boolean);
+
+            if (!orderedCategoryIds.length) {
+              return;
+            }
+
+            try {
+              await reorderCategoryGroup(categories, orderedCategoryIds);
+              categoryFeedback = {
+                message: "Ordre des categories mis a jour.",
+                type: "is-success"
+              };
+              await refreshData();
+            } catch (error) {
+              console.error(error);
+              categoryFeedback = {
+                message: error.message ?? "Reorganisation impossible.",
+                type: "is-error"
+              };
+            }
+
+            render();
+          }
+        });
+      });
     };
 
     const render = () => {
@@ -918,6 +1044,8 @@ export async function renderAdminView(container) {
           render();
         });
       });
+
+      initCategorySortables();
 
       container.querySelector("#categoryForm")?.addEventListener("submit", async (event) => {
         event.preventDefault();
