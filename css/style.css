@@ -890,6 +890,23 @@ input:focus,
   flex-wrap: wrap;
 }
 
+.admin-role-editor {
+  display: grid;
+  gap: 6px;
+  min-width: 132px;
+}
+
+.admin-role-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.admin-role-select {
+  min-width: 132px;
+  padding: 10px 14px;
+}
+
 .admin-drag-handle {
   display: inline-flex;
   align-items: center;

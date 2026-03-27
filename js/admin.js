@@ -95,6 +95,19 @@ async function approveUser(profileId) {
   }
 }
 
+async function updateUserRole(profileId, role) {
+  const normalizedRole = role === "admin" ? "admin" : "user";
+
+  const { error } = await supabaseClient
+    .from("profiles")
+    .update({ role: normalizedRole })
+    .eq("id", profileId);
+
+  if (error) {
+    throw error;
+  }
+}
+
 async function deleteManagedUser(userId) {
   const {
     data: { session },
@@ -963,6 +976,27 @@ export async function renderAdminView(container) {
                           </p>
                         </div>
                         <div class="inline-actions">
+                          <div class="admin-role-editor">
+                            <label class="admin-role-label" for="role-select-${profile.id}">Role</label>
+                            <select
+                              id="role-select-${profile.id}"
+                              class="search-input admin-role-select"
+                              data-role-select="${profile.id}"
+                              data-current-role="${profile.role ?? "user"}"
+                              ${String(profile.id) === String(currentUser?.id ?? "") ? 'disabled title="Modification de votre propre role bloquee"' : ""}
+                            >
+                              <option value="user" ${profile.role === "user" ? "selected" : ""}>User</option>
+                              <option value="admin" ${profile.role === "admin" ? "selected" : ""}>Admin</option>
+                            </select>
+                          </div>
+                          <button
+                            class="button button-secondary"
+                            type="button"
+                            data-role-update-id="${profile.id}"
+                            ${String(profile.id) === String(currentUser?.id ?? "") ? 'disabled title="Modification de votre propre role bloquee"' : ""}
+                          >
+                            Modifier role
+                          </button>
                           <button class="button button-ghost" type="button" data-approve-id="${profile.id}" ${getProfileStatus(profile) === "approved" ? "disabled" : ""}>
                             Approuver
                           </button>
@@ -1074,6 +1108,56 @@ export async function renderAdminView(container) {
           } catch (error) {
             console.error(error);
             feedback = "Approbation impossible. Verifiez vos policies Supabase ou vos droits admin.";
+            feedbackClass = "is-error";
+          }
+
+          render();
+        });
+      });
+
+      container.querySelectorAll("[data-role-update-id]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const profileId = button.dataset.roleUpdateId;
+          const roleSelect = container.querySelector(`[data-role-select="${profileId}"]`);
+          const nextRole = String(roleSelect?.value ?? "").trim().toLowerCase();
+          const targetProfile = profiles.find((profile) => String(profile.id) === String(profileId));
+
+          if (!profileId || !roleSelect || !targetProfile) {
+            return;
+          }
+
+          if (String(profileId) === String(currentUser?.id ?? "")) {
+            feedback = "Modification de votre propre role bloquee pour eviter de perdre l'acces admin.";
+            feedbackClass = "is-warning";
+            render();
+            return;
+          }
+
+          if (!["user", "admin"].includes(nextRole)) {
+            feedback = "Role invalide.";
+            feedbackClass = "is-warning";
+            render();
+            return;
+          }
+
+          if ((targetProfile.role ?? "user") === nextRole) {
+            feedback = "Aucun changement de role a enregistrer.";
+            feedbackClass = "is-warning";
+            render();
+            return;
+          }
+
+          button.disabled = true;
+          roleSelect.disabled = true;
+
+          try {
+            await updateUserRole(profileId, nextRole);
+            profiles = await fetchProfiles();
+            feedback = `Role mis a jour : ${nextRole}.`;
+            feedbackClass = "is-success";
+          } catch (error) {
+            console.error(error);
+            feedback = "Modification du role impossible. Verifiez vos policies Supabase ou vos droits admin.";
             feedbackClass = "is-error";
           }
 
