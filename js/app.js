@@ -15,12 +15,12 @@ import {
   isProfileApproved
 } from "./profiles.js";
 import {
-  getFavoritesCount,
   renderCategoriesView,
   renderFavoritesView
 } from "./categories.js";
 import { renderCardsView } from "./cards.js";
 import { renderAdminView } from "./admin.js";
+import { getFavoritesCount, initFavorites } from "./favorites.js";
 
 const state = {
   session: null,
@@ -304,6 +304,7 @@ async function refreshAuthState() {
     state.session = null;
     state.user = null;
     state.profile = null;
+    await initFavorites({ force: true });
     renderAccessState();
     return;
   }
@@ -324,6 +325,7 @@ async function refreshAuthState() {
     console.error(profileError);
   }
 
+  await initFavorites({ force: true });
   renderAccessState();
 }
 

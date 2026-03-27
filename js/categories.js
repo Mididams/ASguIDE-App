@@ -3,8 +3,11 @@ import {
   createOpenDocumentUrl,
   getResourceOpenMode
 } from "./uploads.js";
-
-const FAVORITES_STORAGE_KEY = "asguide.favoriteResources";
+import {
+  getFavoriteIds,
+  initFavorites,
+  toggleFavoriteResource
+} from "./favorites.js";
 
 function normalizeText(value) {
   return String(value ?? "")
@@ -47,47 +50,6 @@ async function fetchResources() {
   }
 
   return (data ?? []).sort(compareBySortOrder);
-}
-
-function getStoredFavoriteIds() {
-  try {
-    const rawValue = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
-    const parsed = rawValue ? JSON.parse(rawValue) : [];
-
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return parsed.map((value) => String(value));
-  } catch (error) {
-    console.error("Impossible de lire les favoris locaux.", error);
-    return [];
-  }
-}
-
-function saveFavoriteIds(ids) {
-  window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(ids));
-  window.dispatchEvent(new CustomEvent("favorites:changed", { detail: { count: ids.length } }));
-}
-
-export function getFavoriteIds() {
-  return getStoredFavoriteIds();
-}
-
-export function getFavoritesCount() {
-  return getStoredFavoriteIds().length;
-}
-
-export function toggleFavoriteResource(resourceId) {
-  const resourceKey = String(resourceId);
-  const currentIds = getStoredFavoriteIds();
-  const exists = currentIds.includes(resourceKey);
-  const nextIds = exists
-    ? currentIds.filter((id) => id !== resourceKey)
-    : [...currentIds, resourceKey];
-
-  saveFavoriteIds(nextIds);
-  return !exists;
 }
 
 function buildCategoryMap(categories) {
@@ -456,9 +418,18 @@ function attachSharedDocumentEvents(container, rerender, resources) {
   });
 
   container.querySelectorAll("[data-favorite-id]").forEach((button) => {
-    button.addEventListener("click", () => {
-      toggleFavoriteResource(button.dataset.favoriteId);
-      rerender();
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+
+      try {
+        await toggleFavoriteResource(button.dataset.favoriteId);
+        rerender();
+      } catch (error) {
+        console.error(error);
+        window.alert("Impossible de mettre a jour les favoris pour le moment.");
+      } finally {
+        button.disabled = false;
+      }
     });
   });
 }
@@ -479,10 +450,11 @@ export async function renderFavoritesView(container) {
   container.innerHTML = '<p class="muted">Chargement des favoris...</p>';
 
   try {
+    await initFavorites();
     const resources = await fetchResources();
 
     const render = () => {
-      const refreshedFavorites = getStoredFavoriteIds();
+      const refreshedFavorites = getFavoriteIds();
       const visibleResources = resources
         .filter((resource) => refreshedFavorites.includes(String(resource.id)))
         .sort(compareBySortOrder);
@@ -492,7 +464,7 @@ export async function renderFavoritesView(container) {
           <div class="info-card">
             <p class="section-kicker">Favoris</p>
             <strong>${visibleResources.length} document(s) enregistre(s)</strong>
-            <p class="muted">Les favoris sont stockes localement dans ce navigateur.</p>
+            <p class="muted">Les favoris sont synchronises avec votre compte quand la base est configuree.</p>
           </div>
 
           ${renderDocuments(
@@ -522,6 +494,7 @@ export async function renderCategoriesView(container, options = {}) {
   container.innerHTML = '<p class="muted">Chargement des categories...</p>';
 
   try {
+    await initFavorites();
     const [allCategories, allResources] = await Promise.all([fetchCategories(), fetchResources()]);
     const allCategoryMap = buildCategoryMap(allCategories);
     const categories = getFilteredCategories(allCategories, categoryType, allCategoryMap);
@@ -535,7 +508,7 @@ export async function renderCategoriesView(container, options = {}) {
     let mobilePanel = null;
 
     function render() {
-      const favoriteIds = getStoredFavoriteIds();
+      const favoriteIds = getFavoriteIds();
       const normalized = normalizeSelection(categories, rootCategories, selectedRootId, selectedSubcategoryId);
 
       selectedRootId = normalized.selectedRootId;
