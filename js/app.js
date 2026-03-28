@@ -16,7 +16,8 @@ import {
 } from "./profiles.js";
 import {
   renderCategoriesView,
-  renderFavoritesView
+  renderFavoritesView,
+  renderFavoritesViewWithOptions
 } from "./categories.js";
 import { renderCardsView } from "./cards.js";
 import { renderAdminView } from "./admin.js";
@@ -202,7 +203,13 @@ function updateUserStatus() {
 
 function getNavLabel(item) {
   if (item.id === "favorites") {
-    return `${item.label} (${getFavoritesCount()})`;
+    const baseLabel = `${item.label} (${getFavoritesCount()})`;
+
+    if (state.currentView === "favorites" && state.viewContext?.categoryType) {
+      return `${baseLabel} - Global`;
+    }
+
+    return baseLabel;
   }
 
   return item.label;
@@ -257,7 +264,14 @@ async function renderCurrentView() {
       });
       break;
     case "favorites":
-      await renderFavoritesView(elements.mainContent);
+      if (state.viewContext?.categoryType) {
+        await renderFavoritesViewWithOptions(elements.mainContent, {
+          categoryType: state.viewContext.categoryType,
+          title: state.viewContext.title ?? "Favoris"
+        });
+      } else {
+        await renderFavoritesView(elements.mainContent);
+      }
       break;
     case "emergency":
       await renderEmergencyView();

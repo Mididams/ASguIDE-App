@@ -69,6 +69,21 @@ function inferTypeFromName(name) {
   return null;
 }
 
+function getSectionLabel(categoryType) {
+  switch (normalizeText(categoryType)) {
+    case "medicament":
+      return "Médicaments";
+    case "protocole":
+      return "Protocoles / Procédures";
+    case "annuaire":
+      return "Annuaires";
+    case "code":
+      return "Codes";
+    default:
+      return "Favoris";
+  }
+}
+
 function resolveCategoryType(category, categoryMap) {
   if (!category) {
     return "";
@@ -447,30 +462,56 @@ function isMobileCategoriesLayout() {
 }
 
 export async function renderFavoritesView(container) {
+  return renderFavoritesViewWithOptions(container);
+}
+
+export async function renderFavoritesViewWithOptions(container, options = {}) {
+  const {
+    categoryType = "",
+    title = "Favoris"
+  } = options;
+
   container.innerHTML = '<p class="muted">Chargement des favoris...</p>';
 
   try {
     await initFavorites();
-    const resources = await fetchResources();
+    const [resources, categories] = await Promise.all([fetchResources(), fetchCategories()]);
+    const categoryMap = buildCategoryMap(categories);
 
     const render = () => {
       const refreshedFavorites = getFavoriteIds();
       const visibleResources = resources
         .filter((resource) => refreshedFavorites.includes(String(resource.id)))
+        .filter((resource) => {
+          if (!categoryType) {
+            return true;
+          }
+
+          const resourceCategory = categoryMap.get(String(resource.category_id)) ?? null;
+          return resolveCategoryType(resourceCategory, categoryMap) === normalizeText(categoryType);
+        })
         .sort(compareBySortOrder);
+
+      const emptyMessage = categoryType
+        ? `Aucun favori enregistre pour la rubrique ${title}.`
+        : "Aucun favori enregistre pour le moment.";
+      const helperText = categoryType
+        ? `Cette vue affiche uniquement les favoris de la rubrique ${title}. Le bouton Favoris du menu reste global.`
+        : "Cette vue affiche tous vos favoris, toutes rubriques confondues.";
+      const kickerLabel = categoryType ? `Favoris - ${title}` : "Favoris";
 
       container.innerHTML = `
         <div class="favorites-view stack">
           <div class="info-card">
-            <p class="section-kicker">Favoris</p>
+            <p class="section-kicker">${kickerLabel}</p>
             <strong>${visibleResources.length} document(s) enregistre(s)</strong>
-            <p class="muted">Les favoris sont synchronises avec votre compte quand la base est configuree.</p>
+            <p class="muted">${helperText}</p>
           </div>
 
           ${renderDocuments(
             visibleResources,
             refreshedFavorites,
-            "Aucun favori enregistre pour le moment."
+            emptyMessage
           )}
         </div>
       `;
@@ -511,6 +552,7 @@ export async function renderCategoriesView(container, options = {}) {
 
     function render() {
       const favoriteIds = getFavoriteIds();
+      const sectionFavoriteCount = resources.filter((resource) => favoriteIds.includes(String(resource.id))).length;
       const normalized = normalizeSelection(categories, rootCategories, selectedRootId, selectedSubcategoryId);
 
       selectedRootId = normalized.selectedRootId;
@@ -598,7 +640,7 @@ export async function renderCategoriesView(container, options = {}) {
             <div class="category-toolbar-stats">
               <button class="info-card compact-card compact-card-button" type="button" data-open-favorites-view>
                 <p class="inline-label">Favoris</p>
-                <strong>${favoriteIds.length}</strong>
+                <strong>${sectionFavoriteCount}</strong>
               </button>
               <div class="info-card compact-card">
                 <p class="inline-label">Documents</p>
@@ -761,7 +803,15 @@ export async function renderCategoriesView(container, options = {}) {
       });
 
       container.querySelector("[data-open-favorites-view]")?.addEventListener("click", () => {
-        window.dispatchEvent(new CustomEvent("app:navigate", { detail: { view: "favorites" } }));
+        window.dispatchEvent(new CustomEvent("app:navigate", {
+          detail: {
+            view: "favorites",
+            context: {
+              categoryType,
+              title: getSectionLabel(categoryType)
+            }
+          }
+        }));
       });
 
       attachSharedDocumentEvents(container, render, resources);
