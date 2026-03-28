@@ -9,6 +9,8 @@ import {
   toggleFavoriteResource
 } from "./favorites.js";
 
+const CATEGORY_ORDER_STORAGE_KEY = "asguide.categoryOrderPreferences";
+
 function normalizeText(value) {
   return String(value ?? "")
     .normalize("NFD")
@@ -50,6 +52,71 @@ async function fetchResources() {
   }
 
   return (data ?? []).sort(compareBySortOrder);
+}
+
+async function getCurrentUserId() {
+  const { data, error } = await supabaseClient.auth.getSession();
+
+  if (error) {
+    console.error("Impossible de lire la session active pour l'ordre des categories.", error);
+    return "anonymous";
+  }
+
+  return data.session?.user?.id ?? "anonymous";
+}
+
+function readCategoryOrderPreferences() {
+  try {
+    const rawValue = window.localStorage.getItem(CATEGORY_ORDER_STORAGE_KEY);
+    const parsed = rawValue ? JSON.parse(rawValue) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (error) {
+    console.error("Impossible de lire les preferences de tri des categories.", error);
+    return {};
+  }
+}
+
+function writeCategoryOrderPreferences(preferences) {
+  try {
+    window.localStorage.setItem(CATEGORY_ORDER_STORAGE_KEY, JSON.stringify(preferences));
+  } catch (error) {
+    console.error("Impossible d'enregistrer les preferences de tri des categories.", error);
+  }
+}
+
+function getCategoryOrderScopeKey({ userId, categoryType, parentId = null }) {
+  return `${String(userId || "anonymous")}::${normalizeText(categoryType) || "all"}::${parentId == null ? "root" : String(parentId)}`;
+}
+
+function applyStoredOrder(items, preferences, scopeKey) {
+  const preferredOrder = Array.isArray(preferences?.[scopeKey]) ? preferences[scopeKey].map(String) : [];
+
+  if (!preferredOrder.length) {
+    return [...items];
+  }
+
+  const orderIndex = new Map(preferredOrder.map((id, index) => [String(id), index]));
+
+  return [...items].sort((a, b) => {
+    const aIndex = orderIndex.has(String(a.id)) ? orderIndex.get(String(a.id)) : Number.MAX_SAFE_INTEGER;
+    const bIndex = orderIndex.has(String(b.id)) ? orderIndex.get(String(b.id)) : Number.MAX_SAFE_INTEGER;
+
+    if (aIndex !== bIndex) {
+      return aIndex - bIndex;
+    }
+
+    return compareBySortOrder(a, b);
+  });
+}
+
+function saveStoredOrder(preferences, scopeKey, orderedIds) {
+  const nextPreferences = {
+    ...preferences,
+    [scopeKey]: orderedIds.map((id) => String(id))
+  };
+
+  writeCategoryOrderPreferences(nextPreferences);
+  return nextPreferences;
 }
 
 function buildCategoryMap(categories) {
@@ -160,7 +227,8 @@ function renderSelectableList(items, selectedId, options = {}) {
   const {
     buttonAttr,
     emptyMessage,
-    helperText = null
+    helperText = null,
+    listAttr = ""
   } = options;
 
   if (!items.length) {
@@ -168,7 +236,7 @@ function renderSelectableList(items, selectedId, options = {}) {
   }
 
   return `
-    <div class="category-list">
+    <div class="category-list" ${listAttr}>
       ${items
         .map((item) => {
           const meta = helperText ? helperText(item) : "";
@@ -178,7 +246,9 @@ function renderSelectableList(items, selectedId, options = {}) {
               class="category-item-button ${String(item.id) === String(selectedId) ? "is-selected" : ""}"
               type="button"
               ${buttonAttr}="${item.id}"
+              data-category-sort-id="${item.id}"
             >
+              <span class="category-drag-handle" aria-hidden="true">⋮⋮</span>
               <strong>${item.name}</strong>
               ${meta ? `<small>${meta}</small>` : ""}
             </button>
@@ -538,6 +608,8 @@ export async function renderCategoriesView(container, options = {}) {
 
   try {
     await initFavorites();
+    let orderPreferences = readCategoryOrderPreferences();
+    const currentUserId = await getCurrentUserId();
     const [allCategories, allResources] = await Promise.all([fetchCategories(), fetchResources()]);
     const allCategoryMap = buildCategoryMap(allCategories);
     const categories = getFilteredCategories(allCategories, categoryType, allCategoryMap);
@@ -552,15 +624,34 @@ export async function renderCategoriesView(container, options = {}) {
 
     function render() {
       const favoriteIds = getFavoriteIds();
-      const sectionFavoriteCount = resources.filter((resource) => favoriteIds.includes(String(resource.id))).length;
-      const normalized = normalizeSelection(categories, rootCategories, selectedRootId, selectedSubcategoryId);
+      const rootScopeKey = getCategoryOrderScopeKey({
+        userId: currentUserId,
+        categoryType,
+        parentId: null
+      });
+      const orderedRootCategories = applyStoredOrder(rootCategories, orderPreferences, rootScopeKey);
+      const normalized = normalizeSelection(categories, orderedRootCategories, selectedRootId, selectedSubcategoryId);
 
       selectedRootId = normalized.selectedRootId;
       selectedSubcategoryId = normalized.selectedSubcategoryId;
 
       const selectedRoot = normalized.selectedRoot;
-      const subcategories = normalized.subcategories;
-      const selectedSubcategory = normalized.selectedSubcategory;
+      const subcategoryScopeKey = getCategoryOrderScopeKey({
+        userId: currentUserId,
+        categoryType,
+        parentId: selectedRoot?.id ?? null
+      });
+      const subcategories = applyStoredOrder(normalized.subcategories, orderPreferences, subcategoryScopeKey);
+      const selectedSubcategory =
+        subcategories.find((subcategory) => String(subcategory.id) === String(selectedSubcategoryId)) ??
+        normalized.selectedSubcategory;
+      const sectionFavoriteCount = resources
+        .filter((resource) => favoriteIds.includes(String(resource.id)))
+        .filter((resource) => {
+          const resourceCategory = categoryMap.get(String(resource.category_id)) ?? null;
+          return resolveCategoryType(resourceCategory, categoryMap) === normalizeText(categoryType);
+        })
+        .length;
       const activeDocumentCategoryId = selectedSubcategory?.id ?? selectedRoot?.id ?? null;
       const documents = resources
         .filter((resource) => String(resource.category_id) === String(activeDocumentCategoryId))
@@ -593,6 +684,7 @@ export async function renderCategoriesView(container, options = {}) {
                     subcategories.length
                       ? renderSelectableList(subcategories, selectedSubcategoryId, {
                           buttonAttr: "data-subcategory-id",
+                          listAttr: `data-category-sort-list="subcategories" data-category-sort-scope="${subcategoryScopeKey}"`,
                           emptyMessage: "Aucune sous-categorie disponible.",
                           helperText: (subcategory) => `${countDocumentsForCategory(resources, subcategory.id)} document(s)`
                         })
@@ -663,8 +755,9 @@ export async function renderCategoriesView(container, options = {}) {
                 <p class="section-kicker">Etape 1</p>
                 <h3>Categories</h3>
               </div>
-              ${renderSelectableList(rootCategories, selectedRootId, {
+              ${renderSelectableList(orderedRootCategories, selectedRootId, {
                 buttonAttr: "data-root-id",
+                listAttr: `data-category-sort-list="roots" data-category-sort-scope="${rootScopeKey}"`,
                 emptyMessage,
                 helperText: (category) => {
                   const subcategoryCount = getDirectChildren(categories, category.id).length;
@@ -683,6 +776,7 @@ export async function renderCategoriesView(container, options = {}) {
                 subcategories.length
                   ? renderSelectableList(subcategories, selectedSubcategoryId, {
                       buttonAttr: "data-subcategory-id",
+                      listAttr: `data-category-sort-list="subcategories" data-category-sort-scope="${subcategoryScopeKey}"`,
                       emptyMessage: "Aucune sous-categorie disponible.",
                       helperText: (subcategory) => `${countDocumentsForCategory(resources, subcategory.id)} document(s)`
                     })
@@ -742,6 +836,37 @@ export async function renderCategoriesView(container, options = {}) {
         event.preventDefault();
         event.target.blur();
       });
+
+      if (window.Sortable) {
+        container.querySelectorAll("[data-category-sort-list]").forEach((list) => {
+          if (list._sortableInstance) {
+            list._sortableInstance.destroy();
+          }
+
+          list._sortableInstance = window.Sortable.create(list, {
+            animation: 180,
+            easing: "cubic-bezier(0.2, 0, 0, 1)",
+            handle: ".category-drag-handle",
+            draggable: "[data-category-sort-id]",
+            ghostClass: "is-drag-ghost",
+            chosenClass: "is-drag-chosen",
+            dragClass: "is-drag-active",
+            onEnd: () => {
+              const scopeKey = list.dataset.categorySortScope;
+              const orderedIds = Array.from(list.querySelectorAll("[data-category-sort-id]"))
+                .map((item) => item.dataset.categorySortId)
+                .filter(Boolean);
+
+              if (!scopeKey || !orderedIds.length) {
+                return;
+              }
+
+              orderPreferences = saveStoredOrder(orderPreferences, scopeKey, orderedIds);
+              render();
+            }
+          });
+        });
+      }
 
       container.querySelectorAll("[data-search-root-id]").forEach((button) => {
         button.addEventListener("click", () => {

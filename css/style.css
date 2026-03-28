@@ -837,6 +837,19 @@ input:focus,
   transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
 }
 
+.category-drag-handle {
+  float: right;
+  margin-left: 10px;
+  color: var(--text-muted);
+  cursor: grab;
+  font-size: 0.9rem;
+  letter-spacing: -0.08em;
+}
+
+.category-drag-handle:active {
+  cursor: grabbing;
+}
+
 .category-item-button:hover {
   transform: translateY(-1px);
   border-color: rgba(15, 118, 110, 0.24);
