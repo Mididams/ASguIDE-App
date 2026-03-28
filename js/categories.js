@@ -119,6 +119,130 @@ function saveStoredOrder(preferences, scopeKey, orderedIds) {
   return nextPreferences;
 }
 
+function getUserScopedPreferences(preferences, userId) {
+  const prefix = `${String(userId || "anonymous")}::`;
+
+  return Object.fromEntries(
+    Object.entries(preferences).filter(([key, value]) => key.startsWith(prefix) && Array.isArray(value))
+  );
+}
+
+async function fetchRemoteCategoryOrderPreferences(userId) {
+  if (!userId || userId === "anonymous") {
+    return {};
+  }
+
+  const { data, error } = await supabaseClient
+    .from("user_category_orders")
+    .select("scope_key, ordered_category_ids")
+    .eq("user_id", userId);
+
+  if (error) {
+    throw error;
+  }
+
+  return Object.fromEntries(
+    (data ?? []).map((entry) => [
+      String(entry.scope_key),
+      Array.isArray(entry.ordered_category_ids) ? entry.ordered_category_ids.map(String) : []
+    ])
+  );
+}
+
+async function syncLocalCategoryOrdersToRemote(userId, preferences) {
+  if (!userId || userId === "anonymous") {
+    return;
+  }
+
+  const scopedPreferences = getUserScopedPreferences(preferences, userId);
+  const entries = Object.entries(scopedPreferences);
+
+  if (!entries.length) {
+    return;
+  }
+
+  const payload = entries.map(([scopeKey, orderedCategoryIds]) => {
+    const [, categoryType = "all", parentScope = "root"] = scopeKey.split("::");
+
+    return {
+      user_id: userId,
+      scope_key: scopeKey,
+      category_type: categoryType,
+      parent_id: parentScope === "root" ? null : parentScope,
+      ordered_category_ids: orderedCategoryIds,
+      updated_at: new Date().toISOString()
+    };
+  });
+
+  const { error } = await supabaseClient
+    .from("user_category_orders")
+    .upsert(payload, { onConflict: "user_id,scope_key" });
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function initCategoryOrderPreferences(userId) {
+  const localPreferences = readCategoryOrderPreferences();
+
+  if (!userId || userId === "anonymous") {
+    return localPreferences;
+  }
+
+  try {
+    const remotePreferences = await fetchRemoteCategoryOrderPreferences(userId);
+
+    if (!Object.keys(remotePreferences).length) {
+      await syncLocalCategoryOrdersToRemote(userId, localPreferences);
+      return localPreferences;
+    }
+
+    const mergedPreferences = {
+      ...localPreferences,
+      ...remotePreferences
+    };
+
+    writeCategoryOrderPreferences(mergedPreferences);
+    return mergedPreferences;
+  } catch (error) {
+    console.error("Impossible de synchroniser l'ordre des categories.", error);
+    return localPreferences;
+  }
+}
+
+async function persistCategoryOrderPreference(userId, preferences, scopeKey, categoryType, parentId, orderedIds) {
+  const nextPreferences = saveStoredOrder(preferences, scopeKey, orderedIds);
+
+  if (!userId || userId === "anonymous") {
+    return nextPreferences;
+  }
+
+  try {
+    const { error } = await supabaseClient
+      .from("user_category_orders")
+      .upsert(
+        {
+          user_id: userId,
+          scope_key: scopeKey,
+          category_type: normalizeText(categoryType) || "all",
+          parent_id: parentId == null ? null : String(parentId),
+          ordered_category_ids: orderedIds.map((id) => String(id)),
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: "user_id,scope_key" }
+      );
+
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.error("Impossible d'enregistrer l'ordre des categories en ligne.", error);
+  }
+
+  return nextPreferences;
+}
+
 function buildCategoryMap(categories) {
   return new Map(categories.map((category) => [String(category.id), category]));
 }
@@ -608,8 +732,8 @@ export async function renderCategoriesView(container, options = {}) {
 
   try {
     await initFavorites();
-    let orderPreferences = readCategoryOrderPreferences();
     const currentUserId = await getCurrentUserId();
+    let orderPreferences = await initCategoryOrderPreferences(currentUserId);
     const [allCategories, allResources] = await Promise.all([fetchCategories(), fetchResources()]);
     const allCategoryMap = buildCategoryMap(allCategories);
     const categories = getFilteredCategories(allCategories, categoryType, allCategoryMap);
@@ -851,7 +975,7 @@ export async function renderCategoriesView(container, options = {}) {
             ghostClass: "is-drag-ghost",
             chosenClass: "is-drag-chosen",
             dragClass: "is-drag-active",
-            onEnd: () => {
+            onEnd: async () => {
               const scopeKey = list.dataset.categorySortScope;
               const orderedIds = Array.from(list.querySelectorAll("[data-category-sort-id]"))
                 .map((item) => item.dataset.categorySortId)
@@ -861,7 +985,15 @@ export async function renderCategoriesView(container, options = {}) {
                 return;
               }
 
-              orderPreferences = saveStoredOrder(orderPreferences, scopeKey, orderedIds);
+              const parentScope = scopeKey.split("::")[2] ?? "root";
+              orderPreferences = await persistCategoryOrderPreference(
+                currentUserId,
+                orderPreferences,
+                scopeKey,
+                categoryType,
+                parentScope === "root" ? null : parentScope,
+                orderedIds
+              );
               render();
             }
           });
