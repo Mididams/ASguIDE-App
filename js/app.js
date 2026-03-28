@@ -134,7 +134,17 @@ const elements = {
   globalSearchInput: document.getElementById("globalSearchInput"),
   waitingMessage: document.getElementById("waitingMessage"),
   mainNav: document.getElementById("mainNav"),
-  mainContent: document.getElementById("mainContent")
+  mainContent: document.getElementById("mainContent"),
+  mobileNav: document.getElementById("mobileNav")
+};
+
+const MOBILE_NAV_ICONS = {
+  medications: "💊",
+  protocols: "📋",
+  favorites: "★",
+  "emergency-meds": "⚡",
+  directories: "☎",
+  codes: "#"
 };
 
 function setFeedback(message = "", type = "is-error") {
@@ -240,9 +250,31 @@ function renderNavigation() {
     )
     .join("");
 
+  elements.mobileNav.innerHTML = items
+    .map(
+      (item) => `
+        <button
+          class="mobile-nav-button ${state.currentView === item.id ? "is-active" : ""}"
+          type="button"
+          data-mobile-view="${item.id}"
+          aria-label="${item.label}"
+        >
+          <span class="mobile-nav-icon" aria-hidden="true">${MOBILE_NAV_ICONS[item.id] ?? "•"}</span>
+          <span class="mobile-nav-label">${item.label}</span>
+        </button>
+      `
+    )
+    .join("");
+
   elements.mainNav.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => {
       navigateTo(button.dataset.view);
+    });
+  });
+
+  elements.mobileNav.querySelectorAll("[data-mobile-view]").forEach((button) => {
+    button.addEventListener("click", () => {
+      navigateTo(button.dataset.mobileView);
     });
   });
 }
@@ -314,11 +346,13 @@ function renderAccessState() {
   elements.authPanel.classList.toggle("hidden", isConnected);
   elements.waitingPanel.classList.toggle("hidden", !isConnected || isApproved);
   elements.appPanel.classList.toggle("hidden", !isConnected || !isApproved);
+  elements.mobileNav.classList.toggle("hidden", !isConnected || !isApproved);
   elements.mainLayout.classList.toggle("is-auth-only", !isConnected || !isApproved);
 
   if (isConnected && !isApproved) {
     elements.mainContent.innerHTML = "";
     elements.mainNav.innerHTML = "";
+    elements.mobileNav.innerHTML = "";
     elements.waitingMessage.textContent =
       approvalState === "rejected"
         ? "Votre accès a été refusé. Contactez un administrateur du service."
