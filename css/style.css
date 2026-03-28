@@ -1295,7 +1295,7 @@ input:focus,
     position: fixed;
     left: 14px;
     right: 14px;
-    bottom: max(10px, env(safe-area-inset-bottom));
+    bottom: 0;
     z-index: 60;
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
