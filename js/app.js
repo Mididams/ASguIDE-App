@@ -21,13 +21,15 @@ import {
 import { renderCardsView } from "./cards.js";
 import { renderAdminView } from "./admin.js";
 import { getFavoritesCount, initFavorites } from "./favorites.js";
+import { renderGlobalSearchView } from "./global-search.js";
 
 const state = {
   session: null,
   user: null,
   profile: null,
   currentView: "medications",
-  authMode: "login"
+  authMode: "login",
+  viewContext: {}
 };
 
 const NAV_ITEMS = [
@@ -76,10 +78,15 @@ const VIEW_CONFIG = {
     id: "admin",
     label: "Administration",
     kind: "admin"
+  },
+  search: {
+    id: "search",
+    label: "Recherche",
+    kind: "search"
   }
 };
 
-const navigationMap = new Map([...NAV_ITEMS, VIEW_CONFIG.admin].map((item) => [item.id, item]));
+const navigationMap = new Map([...NAV_ITEMS, VIEW_CONFIG.admin, VIEW_CONFIG.search].map((item) => [item.id, item]));
 
 const AUTH_COPY = {
   login: {
@@ -122,6 +129,8 @@ const elements = {
   userStatus: document.getElementById("userStatus"),
   logoutBtn: document.getElementById("logoutBtn"),
   adminBtn: document.getElementById("adminBtn"),
+  globalSearchForm: document.getElementById("globalSearchForm"),
+  globalSearchInput: document.getElementById("globalSearchInput"),
   waitingMessage: document.getElementById("waitingMessage"),
   mainNav: document.getElementById("mainNav"),
   mainContent: document.getElementById("mainContent")
@@ -199,8 +208,9 @@ function getNavLabel(item) {
   return item.label;
 }
 
-function navigateTo(view) {
+function navigateTo(view, context = {}) {
   state.currentView = view;
+  state.viewContext = context ?? {};
   renderNavigation();
   renderCurrentView();
 }
@@ -241,7 +251,9 @@ async function renderCurrentView() {
     case "generic":
       await renderCategoriesView(elements.mainContent, {
         categoryType: config.categoryType,
-        emptyMessage: config.emptyMessage
+        emptyMessage: config.emptyMessage,
+        initialRootId: state.viewContext?.rootId ?? null,
+        initialSubcategoryId: state.viewContext?.subcategoryId ?? null
       });
       break;
     case "favorites":
@@ -255,12 +267,19 @@ async function renderCurrentView() {
         await renderAdminView(elements.mainContent);
       } else {
         state.currentView = NAV_ITEMS[0].id;
+        state.viewContext = {};
         renderNavigation();
         await renderCurrentView();
       }
       break;
+    case "search":
+      await renderGlobalSearchView(elements.mainContent, {
+        query: state.viewContext?.query ?? elements.globalSearchInput?.value ?? ""
+      });
+      break;
     default:
       state.currentView = NAV_ITEMS[0].id;
+      state.viewContext = {};
       renderNavigation();
       await renderCurrentView();
       break;
@@ -277,6 +296,7 @@ function renderAccessState() {
 
   elements.logoutBtn.classList.toggle("hidden", !isConnected);
   elements.adminBtn.classList.toggle("hidden", !isConnected || !isApproved || !isAdmin);
+  elements.globalSearchForm.classList.toggle("hidden", !isConnected || !isApproved);
   elements.authPanel.classList.toggle("hidden", isConnected);
   elements.waitingPanel.classList.toggle("hidden", !isConnected || isApproved);
   elements.appPanel.classList.toggle("hidden", !isConnected || !isApproved);
@@ -294,6 +314,8 @@ function renderAccessState() {
   if (isConnected && isApproved) {
     renderNavigation();
     renderCurrentView();
+  } else if (elements.globalSearchInput) {
+    elements.globalSearchInput.value = "";
   }
 }
 
@@ -460,6 +482,13 @@ function registerEvents() {
   elements.showSignupBtn.addEventListener("click", () => setAuthMode("signup"));
   elements.signupLinkBtn.addEventListener("click", () => setAuthMode("signup"));
   elements.loginLinkBtn?.addEventListener("click", () => setAuthMode("login"));
+  elements.globalSearchForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+
+    const query = elements.globalSearchInput?.value.trim() ?? "";
+
+    navigateTo("search", { query });
+  });
 
   subscribeToAuthChanges(async () => {
     await refreshAuthState();
@@ -475,12 +504,13 @@ function registerEvents() {
 
   window.addEventListener("app:navigate", (event) => {
     const view = event?.detail?.view;
+    const context = event?.detail?.context ?? {};
 
     if (!view || !navigationMap.has(view)) {
       return;
     }
 
-    navigateTo(view);
+    navigateTo(view, context);
   });
 }
 

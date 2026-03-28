@@ -144,6 +144,23 @@
       </section>
 
       <section id="appPanel" class="app-panel hidden">
+        <form id="globalSearchForm" class="panel global-search-bar hidden" role="search">
+          <div class="global-search-copy">
+            <p class="section-kicker">Recherche globale</p>
+          </div>
+          <label class="topbar-search-field" for="globalSearchInput">
+            <span class="sr-only">Recherche globale</span>
+            <input
+              id="globalSearchInput"
+              class="search-input topbar-search-input"
+              type="search"
+              placeholder="Document, code, annuaire, categorie..."
+              autocomplete="off"
+            >
+          </label>
+          <button id="globalSearchSubmitBtn" class="button button-primary" type="submit">Chercher</button>
+        </form>
+
         <nav id="mainNav" class="app-nav panel" aria-label="Navigation principale"></nav>
 
         <section class="content-column">

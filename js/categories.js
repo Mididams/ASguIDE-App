@@ -488,7 +488,9 @@ export async function renderFavoritesView(container) {
 export async function renderCategoriesView(container, options = {}) {
   const {
     categoryType = "",
-    emptyMessage = "Aucune categorie racine disponible."
+    emptyMessage = "Aucune categorie racine disponible.",
+    initialRootId = null,
+    initialSubcategoryId = null
   } = options;
 
   container.innerHTML = '<p class="muted">Chargement des categories...</p>';
@@ -502,8 +504,8 @@ export async function renderCategoriesView(container, options = {}) {
     const categoryMap = buildCategoryMap(categories);
     const rootCategories = getRootCategoriesForType(categories, categoryType, categoryMap);
 
-    let selectedRootId = rootCategories[0]?.id ?? null;
-    let selectedSubcategoryId = null;
+    let selectedRootId = initialRootId ?? rootCategories[0]?.id ?? null;
+    let selectedSubcategoryId = initialSubcategoryId ?? null;
     let searchQuery = "";
     let mobilePanel = null;
 
