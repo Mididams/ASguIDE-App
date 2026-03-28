@@ -734,6 +734,15 @@ export async function renderCategoriesView(container, options = {}) {
         });
       });
 
+      container.querySelector("#categorySearchInput")?.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" || event.isComposing) {
+          return;
+        }
+
+        event.preventDefault();
+        event.target.blur();
+      });
+
       container.querySelectorAll("[data-search-root-id]").forEach((button) => {
         button.addEventListener("click", () => {
           selectedRootId = button.dataset.searchRootId;

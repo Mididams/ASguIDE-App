@@ -489,6 +489,7 @@ async function handleLogout() {
 
 function performGlobalSearch() {
   const query = elements.globalSearchInput?.value.trim() ?? "";
+  elements.globalSearchInput?.blur();
   navigateTo("search", { query });
 }
 
