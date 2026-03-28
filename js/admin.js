@@ -15,6 +15,11 @@ const CATEGORY_TYPE_OPTIONS = [
   { value: "code", label: "Codes" }
 ];
 
+const ADMIN_CONTENT_SHORTCUTS = [
+  ...CATEGORY_TYPE_OPTIONS,
+  { value: "emergency", label: "Medocs d'urgence", disabled: true }
+];
+
 function normalizeText(value) {
   return String(value ?? "")
     .normalize("NFD")
@@ -537,7 +542,7 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
       const roots = getRootCategories(categories, typeOption.value, categoryMap);
 
       return `
-        <section class="stack">
+        <section class="stack admin-content-section" id="admin-content-${typeOption.value}">
           <div class="admin-type-heading">
             <p class="section-kicker">Type</p>
             <h5>${typeOption.label}</h5>
@@ -666,6 +671,28 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
       `;
     })
     .join("");
+}
+
+function buildAdminContentShortcutMarkup() {
+  return `
+    <div class="admin-content-shortcuts" aria-label="Acces rapide au contenu">
+      ${ADMIN_CONTENT_SHORTCUTS
+        .map((item) => (
+          item.disabled
+            ? `
+              <span class="admin-content-shortcut is-disabled" title="Gestion admin distincte des medocs d'urgence">
+                ${item.label}
+              </span>
+            `
+            : `
+              <a class="admin-content-shortcut" href="#admin-content-${item.value}">
+                ${item.label}
+              </a>
+            `
+        ))
+        .join("")}
+    </div>
+  `;
 }
 
 export async function renderAdminView(container) {
@@ -955,6 +982,7 @@ export async function renderAdminView(container) {
               <p class="section-kicker">Contenu</p>
               <h4>Categories, sous-categories et documents</h4>
               <div class="stack">
+                ${buildAdminContentShortcutMarkup()}
                 ${buildCategoryTreeMarkup(categories, resources, { categorySortOrderEnabled }) || '<p class="empty-state">Aucune categorie enregistree.</p>'}
               </div>
             </article>

@@ -653,6 +653,37 @@ input:focus,
   margin: 0;
 }
 
+.admin-content-shortcuts {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.admin-content-shortcut {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 14px;
+  color: var(--primary-strong);
+  background: rgba(204, 251, 241, 0.52);
+  border: 1px solid rgba(15, 118, 110, 0.16);
+  border-radius: 999px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.admin-content-shortcut.is-disabled {
+  color: var(--text-muted);
+  background: #f8fafc;
+  border-color: rgba(15, 23, 42, 0.08);
+  cursor: not-allowed;
+}
+
+.admin-content-section {
+  scroll-margin-top: 24px;
+}
+
 .detail-body {
   padding: 18px;
   background: var(--surface-muted);
@@ -1121,7 +1152,25 @@ input:focus,
 
 .admin-type-heading h5 {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1.28rem;
+}
+
+.admin-type-heading {
+  position: sticky;
+  top: 16px;
+  z-index: 2;
+  padding: 14px 16px;
+  background:
+    linear-gradient(135deg, rgba(204, 251, 241, 0.88) 0%, rgba(255, 255, 255, 0.96) 80%);
+  border: 1px solid rgba(15, 118, 110, 0.14);
+  border-left: 6px solid var(--primary);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.07);
+}
+
+.admin-type-heading .section-kicker {
+  margin-bottom: 8px;
+  font-size: 0.78rem;
 }
 
 .admin-subtree,
