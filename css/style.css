@@ -1342,6 +1342,10 @@ input:focus,
     white-space: nowrap;
   }
 
+  .site-footer {
+    margin-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+
   .topbar {
     align-items: center;
     flex-direction: column;
