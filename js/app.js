@@ -487,6 +487,11 @@ async function handleLogout() {
   await refreshAuthState();
 }
 
+function performGlobalSearch() {
+  const query = elements.globalSearchInput?.value.trim() ?? "";
+  navigateTo("search", { query });
+}
+
 function registerEvents() {
   elements.loginForm.addEventListener("submit", handleLoginSubmit);
   elements.signupForm.addEventListener("submit", handleSignupSubmit);
@@ -498,10 +503,15 @@ function registerEvents() {
   elements.loginLinkBtn?.addEventListener("click", () => setAuthMode("login"));
   elements.globalSearchForm?.addEventListener("submit", (event) => {
     event.preventDefault();
+    performGlobalSearch();
+  });
+  elements.globalSearchInput?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.isComposing) {
+      return;
+    }
 
-    const query = elements.globalSearchInput?.value.trim() ?? "";
-
-    navigateTo("search", { query });
+    event.preventDefault();
+    performGlobalSearch();
   });
 
   subscribeToAuthChanges(async () => {
