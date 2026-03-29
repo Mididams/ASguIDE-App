@@ -1358,8 +1358,15 @@ export async function renderAdminView(container) {
           try {
             await deleteResource(resourceId);
 
+            let storageCleanupWarning = "";
+
             if (targetResource.file_path) {
-              await deleteFileFromStorage(targetResource.file_path);
+              try {
+                await deleteFileFromStorage(targetResource.file_path);
+              } catch (storageError) {
+                console.error(storageError);
+                storageCleanupWarning = " Le document a ete retire de l'administration, mais le fichier physique n'a pas pu etre supprime automatiquement.";
+              }
             }
 
             if (String(editingDocumentId) === String(resourceId)) {
@@ -1368,8 +1375,8 @@ export async function renderAdminView(container) {
 
             await refreshData();
             documentFeedback = {
-              message: "Document supprime.",
-              type: "is-success"
+              message: `Document supprime.${storageCleanupWarning}`,
+              type: storageCleanupWarning ? "is-warning" : "is-success"
             };
           } catch (error) {
             console.error(error);

@@ -4,6 +4,44 @@ import {
   supabaseClient
 } from "./config.js";
 
+function normalizeStorageObjectPath(filePath) {
+  const rawPath = String(filePath ?? "").trim();
+
+  if (!rawPath) {
+    return "";
+  }
+
+  if (/^https?:\/\//i.test(rawPath)) {
+    try {
+      const url = new URL(rawPath);
+      const marker = `/storage/v1/object/${STORAGE_BUCKET}/`;
+      const signedMarker = `/storage/v1/object/sign/${STORAGE_BUCKET}/`;
+      const publicMarker = `/storage/v1/object/public/${STORAGE_BUCKET}/`;
+
+      for (const candidate of [signedMarker, publicMarker, marker]) {
+        const index = url.pathname.indexOf(candidate);
+
+        if (index >= 0) {
+          return decodeURIComponent(url.pathname.slice(index + candidate.length));
+        }
+      }
+
+      return "";
+    } catch {
+      return "";
+    }
+  }
+
+  const normalizedPath = rawPath.replace(/^\/+/, "");
+  const bucketPrefix = `${STORAGE_BUCKET}/`;
+
+  if (normalizedPath.startsWith(bucketPrefix)) {
+    return normalizedPath.slice(bucketPrefix.length);
+  }
+
+  return normalizedPath;
+}
+
 function sanitizeFileName(fileName) {
   return String(fileName ?? "document")
     .normalize("NFD")
@@ -63,13 +101,15 @@ export async function uploadFileToStorage({ file, categoryId, userId }) {
 }
 
 export async function deleteFileFromStorage(filePath) {
-  if (!filePath) {
+  const storageObjectPath = normalizeStorageObjectPath(filePath);
+
+  if (!storageObjectPath) {
     return;
   }
 
   const { error } = await supabaseClient.storage
     .from(STORAGE_BUCKET)
-    .remove([filePath]);
+    .remove([storageObjectPath]);
 
   if (error) {
     throw error;
@@ -127,13 +167,15 @@ export async function createOpenDocumentUrl(resource) {
     return externalUrl;
   }
 
-  if (!resource.file_path) {
+  const storageObjectPath = normalizeStorageObjectPath(resource.file_path);
+
+  if (!storageObjectPath) {
     return "";
   }
 
   const { data, error } = await supabaseClient.storage
     .from(STORAGE_BUCKET)
-    .createSignedUrl(resource.file_path, SIGNED_URL_TTL_SECONDS);
+    .createSignedUrl(storageObjectPath, SIGNED_URL_TTL_SECONDS);
 
   if (error) {
     throw error;
