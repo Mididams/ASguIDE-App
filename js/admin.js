@@ -535,8 +535,28 @@ async function reorderResourceGroup(resources, orderedResourceIds) {
 
 function buildCategoryTreeMarkup(categories, resources, options = {}) {
   const categoryMap = buildCategoryMap(categories);
-  const { categorySortOrderEnabled = true } = options;
+  const {
+    categorySortOrderEnabled = true,
+    adminSearchQuery = ""
+  } = options;
   const documentsSortOrderEnabled = hasResourceSortOrder(resources);
+  const normalizedSearchQuery = normalizeText(adminSearchQuery);
+  const hasSearchQuery = Boolean(normalizedSearchQuery);
+
+  const matchesAdminSearch = (...values) => {
+    if (!hasSearchQuery) {
+      return true;
+    }
+
+    return values.some((value) => normalizeText(value).includes(normalizedSearchQuery));
+  };
+
+  const resourceMatchesSearch = (resource) => matchesAdminSearch(
+    resource?.title,
+    resource?.description,
+    resource?.type,
+    resource?.file_name
+  );
 
   const buildDocumentRowsMarkup = (documentList, categoryId, options = {}) => {
     const { nested = false } = options;
@@ -576,6 +596,44 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
   return CATEGORY_TYPE_OPTIONS
     .map((typeOption) => {
       const roots = getRootCategories(categories, typeOption.value, categoryMap);
+      const visibleRoots = roots
+        .map((rootCategory) => {
+          const children = getChildren(categories, rootCategory.id);
+          const rootDocuments = getResourcesForCategory(resources, rootCategory.id);
+          const visibleRootDocuments = hasSearchQuery
+            ? rootDocuments.filter(resourceMatchesSearch)
+            : rootDocuments;
+          const visibleChildren = children
+            .map((child) => {
+              const childDocuments = getResourcesForCategory(resources, child.id);
+              const visibleChildDocuments = hasSearchQuery
+                ? childDocuments.filter(resourceMatchesSearch)
+                : childDocuments;
+              const childMatches = matchesAdminSearch(child.name);
+
+              if (hasSearchQuery && !childMatches && !visibleChildDocuments.length) {
+                return null;
+              }
+
+              return {
+                child,
+                visibleChildDocuments
+              };
+            })
+            .filter(Boolean);
+          const rootMatches = matchesAdminSearch(rootCategory.name, typeOption.label);
+
+          if (hasSearchQuery && !rootMatches && !visibleChildren.length && !visibleRootDocuments.length) {
+            return null;
+          }
+
+          return {
+            rootCategory,
+            visibleChildren,
+            visibleRootDocuments
+          };
+        })
+        .filter(Boolean);
 
       return `
         <section class="stack admin-content-section" id="admin-content-${typeOption.value}">
@@ -584,7 +642,7 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
             <h5>${typeOption.label}</h5>
           </div>
           ${
-            roots.length
+            visibleRoots.length
               ? `
                   <div
                     class="admin-category-sort-list"
@@ -592,11 +650,8 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
                     data-sort-parent=""
                     data-sort-type="${typeOption.value}"
                   >
-                    ${roots
-                      .map((rootCategory) => {
-                        const children = getChildren(categories, rootCategory.id);
-                        const rootDocuments = getResourcesForCategory(resources, rootCategory.id);
-
+                    ${visibleRoots
+                      .map(({ rootCategory, visibleChildren, visibleRootDocuments }) => {
                         return `
                       <article class="admin-entity-card" data-category-sort-item data-category-id="${rootCategory.id}">
                         <div class="admin-entity-header">
@@ -604,7 +659,7 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
                             <p class="section-kicker">Categorie</p>
                             <h5>${rootCategory.name}</h5>
                             <p class="muted">
-                              ${children.length} sous-categorie(s) - ${rootDocuments.length} document(s) direct(s)
+                              ${visibleChildren.length} sous-categorie(s) - ${visibleRootDocuments.length} document(s) direct(s)
                             </p>
                           </div>
 
@@ -622,7 +677,7 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
                         </div>
 
                         ${
-                          children.length
+                          visibleChildren.length
                             ? `
                               <div
                                 class="admin-subtree admin-category-sort-list"
@@ -630,17 +685,15 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
                                 data-sort-parent="${rootCategory.id}"
                                 data-sort-type="${typeOption.value}"
                               >
-                                ${children
-                                  .map((child) => {
-                                    const childDocuments = getResourcesForCategory(resources, child.id);
-
+                                ${visibleChildren
+                                  .map(({ child, visibleChildDocuments }) => {
                                     return `
                                       <div class="admin-subentity-card" data-category-sort-item data-category-id="${child.id}">
                                         <div class="admin-subentity-header">
                                           <div>
                                             <p class="admin-item-kicker">Sous-categorie</p>
                                             <strong>${child.name}</strong>
-                                            <p class="muted">${childDocuments.length} document(s)</p>
+                                            <p class="muted">${visibleChildDocuments.length} document(s)</p>
                                           </div>
 
                                           <div class="inline-actions">
@@ -657,8 +710,8 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
                                         </div>
 
                                         ${
-                                          childDocuments.length
-                                            ? buildDocumentRowsMarkup(childDocuments, child.id, { nested: true })
+                                          visibleChildDocuments.length
+                                            ? buildDocumentRowsMarkup(visibleChildDocuments, child.id, { nested: true })
                                             : '<p class="empty-state">Aucun document dans cette sous-categorie.</p>'
                                         }
                                       </div>
@@ -670,11 +723,11 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
                             : '<p class="empty-state">Aucune sous-categorie pour cette categorie.</p>'
                         }
                         ${
-                          rootDocuments.length
+                          visibleRootDocuments.length
                             ? `
                               <div class="stack admin-direct-documents-block">
                                 <p class="admin-item-kicker">Documents directs</p>
-                                ${buildDocumentRowsMarkup(rootDocuments, rootCategory.id)}
+                                ${buildDocumentRowsMarkup(visibleRootDocuments, rootCategory.id)}
                               </div>
                             `
                             : ""
@@ -685,7 +738,7 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
                       .join("")}
                   </div>
                 `
-              : '<p class="empty-state">Aucune categorie enregistree pour ce type.</p>'
+              : `<p class="empty-state">${hasSearchQuery ? "Aucun resultat pour cette rubrique." : "Aucune categorie enregistree pour ce type."}</p>`
           }
         </section>
       `;
@@ -733,6 +786,7 @@ export async function renderAdminView(container) {
     let editingCategoryId = null;
     let editingDocumentId = null;
     let pendingUserDeletionId = null;
+    let adminContentSearchQuery = "";
 
     const refreshData = async () => {
       [profiles, categories, resources] = await Promise.all([
@@ -1002,8 +1056,21 @@ export async function renderAdminView(container) {
               <p class="section-kicker">Contenu</p>
               <h4>Categories, sous-categories et documents</h4>
               <div class="stack">
+                <label class="field admin-content-search-field">
+                  <span>Recherche rapide dans le contenu</span>
+                  <input
+                    id="adminContentSearchInput"
+                    class="search-input"
+                    type="search"
+                    placeholder="Categorie, sous-categorie, document..."
+                    value="${adminContentSearchQuery}"
+                  >
+                </label>
                 ${buildAdminContentShortcutMarkup()}
-                ${buildCategoryTreeMarkup(categories, resources, { categorySortOrderEnabled }) || '<p class="empty-state">Aucune categorie enregistree.</p>'}
+                ${buildCategoryTreeMarkup(categories, resources, {
+                  categorySortOrderEnabled,
+                  adminSearchQuery: adminContentSearchQuery
+                }) || '<p class="empty-state">Aucune categorie enregistree.</p>'}
               </div>
             </article>
 
@@ -1088,12 +1155,31 @@ export async function renderAdminView(container) {
 
       const typeSelect = container.querySelector("#resourceTypeSelect");
       const categoryParentSelect = container.querySelector('select[name="parent_id"]');
+      const adminContentSearchInput = container.querySelector("#adminContentSearchInput");
       const categoryTypeSelect = container.querySelector("#categoryTypeSelect");
       const categoryTypeHint = container.querySelector("#categoryTypeHint");
       const externalUrlField = container.querySelector("#externalUrlField");
       const fileField = container.querySelector("#fileField");
       const externalUrlInput = container.querySelector('input[name="external_url"]');
       const fileInput = container.querySelector('input[name="file"]');
+
+      adminContentSearchInput?.addEventListener("input", (event) => {
+        const nextQuery = String(event.currentTarget.value ?? "");
+        const cursorPosition = event.currentTarget.selectionStart ?? nextQuery.length;
+        adminContentSearchQuery = nextQuery;
+        render();
+
+        requestAnimationFrame(() => {
+          const refreshedSearchInput = container.querySelector("#adminContentSearchInput");
+
+          if (!refreshedSearchInput) {
+            return;
+          }
+
+          refreshedSearchInput.focus();
+          refreshedSearchInput.setSelectionRange(cursorPosition, cursorPosition);
+        });
+      });
 
       function syncCategoryTypeField() {
         const parentId = String(categoryParentSelect?.value ?? "").trim();

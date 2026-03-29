@@ -419,7 +419,7 @@ function renderDocuments(resources, favoriteIds, fallbackMessage) {
               </div>
 
               <h4>${resource.title}</h4>
-              <p class="document-meta">${resource.description || "Aucune description renseignée."}</p>
+              ${resource.description ? `<p class="document-meta">${resource.description}</p>` : ""}
 
               <div class="document-actions">
                 <button

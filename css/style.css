@@ -1067,6 +1067,11 @@ input:focus,
   margin-top: 6px;
 }
 
+.admin-content-search-field {
+  display: grid;
+  gap: 8px;
+}
+
 .admin-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
