@@ -549,8 +549,17 @@ function registerEvents() {
     performGlobalSearch();
   });
 
-  subscribeToAuthChanges(async (event) => {
+  subscribeToAuthChanges(async (event, session) => {
     if (!["SIGNED_IN", "SIGNED_OUT", "USER_UPDATED"].includes(event)) {
+      return;
+    }
+
+    if (
+      event === "SIGNED_IN" &&
+      state.user?.id &&
+      session?.user?.id &&
+      String(state.user.id) === String(session.user.id)
+    ) {
       return;
     }
 
