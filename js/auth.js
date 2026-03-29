@@ -62,8 +62,8 @@ export async function getAuthContext() {
 export function subscribeToAuthChanges(callback) {
   const {
     data: { subscription }
-  } = supabaseClient.auth.onAuthStateChange((_event, session) => {
-    callback(session);
+  } = supabaseClient.auth.onAuthStateChange((event, session) => {
+    callback(event, session);
   });
 
   return subscription;

@@ -549,7 +549,11 @@ function registerEvents() {
     performGlobalSearch();
   });
 
-  subscribeToAuthChanges(async () => {
+  subscribeToAuthChanges(async (event) => {
+    if (!["SIGNED_IN", "SIGNED_OUT", "USER_UPDATED"].includes(event)) {
+      return;
+    }
+
     await refreshAuthState();
   });
 
