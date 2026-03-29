@@ -536,6 +536,42 @@ async function reorderResourceGroup(resources, orderedResourceIds) {
 function buildCategoryTreeMarkup(categories, resources, options = {}) {
   const categoryMap = buildCategoryMap(categories);
   const { categorySortOrderEnabled = true } = options;
+  const documentsSortOrderEnabled = hasResourceSortOrder(resources);
+
+  const buildDocumentRowsMarkup = (documentList, categoryId, options = {}) => {
+    const { nested = false } = options;
+
+    return documentList.length
+      ? `
+        <div
+          class="admin-documents-list ${nested ? "is-nested" : ""}"
+          data-resource-sort-list
+          data-resource-category-id="${categoryId}"
+        >
+          ${documentList
+            .map(
+              (resource) => `
+                <div class="admin-document-row" data-resource-sort-item data-resource-id="${resource.id}">
+                  <div>
+                    <strong>${resource.title}</strong>
+                    <p class="muted">${resource.type || "document"} - ordre ${resource.sort_order ?? "-"}</p>
+                  </div>
+
+                  <div class="inline-actions">
+                    <span class="admin-drag-handle" title="${documentsSortOrderEnabled ? "Glisser pour reordonner" : "Migration sort_order requise"}">⋮⋮</span>
+                    <button class="button button-secondary button-small" type="button" data-document-move-up="${resource.id}">↑</button>
+                    <button class="button button-secondary button-small" type="button" data-document-move-down="${resource.id}">↓</button>
+                    <button class="button button-ghost button-small" type="button" data-document-edit="${resource.id}">Modifier</button>
+                    <button class="button button-secondary button-small" type="button" data-document-delete="${resource.id}">Supprimer</button>
+                  </div>
+                </div>
+              `
+            )
+            .join("")}
+        </div>
+      `
+      : "";
+  };
 
   return CATEGORY_TYPE_OPTIONS
     .map((typeOption) => {
@@ -602,6 +638,7 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
                                       <div class="admin-subentity-card" data-category-sort-item data-category-id="${child.id}">
                                         <div class="admin-subentity-header">
                                           <div>
+                                            <p class="admin-item-kicker">Sous-categorie</p>
                                             <strong>${child.name}</strong>
                                             <p class="muted">${childDocuments.length} document(s)</p>
                                           </div>
@@ -621,34 +658,7 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
 
                                         ${
                                           childDocuments.length
-                                            ? `
-                                              <div
-                                                class="admin-documents-list"
-                                                data-resource-sort-list
-                                                data-resource-category-id="${child.id}"
-                                              >
-                                                ${childDocuments
-                                                  .map(
-                                                    (resource) => `
-                                                      <div class="admin-document-row" data-resource-sort-item data-resource-id="${resource.id}">
-                                                        <div>
-                                                          <strong>${resource.title}</strong>
-                                                          <p class="muted">${resource.type || "document"} - ordre ${resource.sort_order ?? "-"}</p>
-                                                        </div>
-
-                                                        <div class="inline-actions">
-                                                          <span class="admin-drag-handle" title="${hasResourceSortOrder(resources) ? "Glisser pour reordonner" : "Migration sort_order requise"}">⋮⋮</span>
-                                                          <button class="button button-secondary button-small" type="button" data-document-move-up="${resource.id}">↑</button>
-                                                          <button class="button button-secondary button-small" type="button" data-document-move-down="${resource.id}">↓</button>
-                                                          <button class="button button-ghost button-small" type="button" data-document-edit="${resource.id}">Modifier</button>
-                                                          <button class="button button-secondary button-small" type="button" data-document-delete="${resource.id}">Supprimer</button>
-                                                        </div>
-                                                      </div>
-                                                    `
-                                                  )
-                                                  .join("")}
-                                              </div>
-                                            `
+                                            ? buildDocumentRowsMarkup(childDocuments, child.id, { nested: true })
                                             : '<p class="empty-state">Aucun document dans cette sous-categorie.</p>'
                                         }
                                       </div>
@@ -658,6 +668,16 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
                               </div>
                             `
                             : '<p class="empty-state">Aucune sous-categorie pour cette categorie.</p>'
+                        }
+                        ${
+                          rootDocuments.length
+                            ? `
+                              <div class="stack admin-direct-documents-block">
+                                <p class="admin-item-kicker">Documents directs</p>
+                                ${buildDocumentRowsMarkup(rootDocuments, rootCategory.id)}
+                              </div>
+                            `
+                            : ""
                         }
                       </article>
                     `;
