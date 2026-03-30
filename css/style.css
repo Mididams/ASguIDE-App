@@ -1487,7 +1487,7 @@ input:focus,
     inset: 0;
     z-index: 40;
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: center;
     padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
     background: rgba(15, 23, 42, 0.34);
