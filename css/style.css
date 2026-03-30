@@ -1533,8 +1533,14 @@ input:focus,
   }
 
   .mobile-stage-header strong {
+    flex: 1 1 auto;
+    min-width: 0;
     font-size: 1.05rem;
     text-align: center;
+  }
+
+  .mobile-stage-header .button {
+    flex: 0 0 auto;
   }
 
   .mobile-stage-breadcrumb {
@@ -1622,11 +1628,26 @@ input:focus,
   }
 
   .mobile-stage-header {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr) max-content;
+    align-items: center;
+    gap: 10px;
   }
 
   .mobile-stage-header .button {
     width: auto;
+  }
+
+  .mobile-stage-header .button:first-child {
+    justify-self: start;
+  }
+
+  .mobile-stage-header strong {
+    width: 100%;
+  }
+
+  .mobile-stage-header .button:last-child {
+    justify-self: end;
   }
 
   .category-toolbar-stats,
