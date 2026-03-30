@@ -944,6 +944,26 @@ input:focus,
   gap: 10px;
 }
 
+.document-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  min-height: 26px;
+  color: var(--text-muted);
+  cursor: grab;
+  user-select: none;
+  border-radius: 8px;
+  background: var(--surface-muted);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  font-size: 0.85rem;
+  letter-spacing: -0.08em;
+}
+
+.document-drag-handle:active {
+  cursor: grabbing;
+}
+
 .doc-icon {
   display: inline-flex;
   align-items: center;

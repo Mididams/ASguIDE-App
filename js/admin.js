@@ -1,4 +1,9 @@
 import { supabaseClient } from "./config.js";
+import {
+  applyStoredOrder,
+  getCategoryOrderScopeKey,
+  initCategoryOrderPreferences
+} from "./categories.js";
 import { getProfileApprovalState } from "./profiles.js";
 import {
   deleteFileFromStorage,
@@ -657,7 +662,9 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
   const categoryMap = buildCategoryMap(categories);
   const {
     categorySortOrderEnabled = true,
-    adminSearchQuery = ""
+    adminSearchQuery = "",
+    orderPreferences = {},
+    currentUserId = "anonymous"
   } = options;
   const documentsSortOrderEnabled = hasResourceSortOrder(resources);
   const normalizedSearchQuery = normalizeText(adminSearchQuery);
@@ -715,10 +722,28 @@ function buildCategoryTreeMarkup(categories, resources, options = {}) {
 
   return CATEGORY_TYPE_OPTIONS
     .map((typeOption) => {
-      const roots = getRootCategories(categories, typeOption.value, categoryMap);
+      const rootScopeKey = getCategoryOrderScopeKey({
+        userId: currentUserId,
+        categoryType: typeOption.value,
+        parentId: null
+      });
+      const roots = applyStoredOrder(
+        getRootCategories(categories, typeOption.value, categoryMap),
+        orderPreferences,
+        rootScopeKey
+      );
       const visibleRoots = roots
         .map((rootCategory) => {
-          const children = getChildren(categories, rootCategory.id);
+          const childScopeKey = getCategoryOrderScopeKey({
+            userId: currentUserId,
+            categoryType: typeOption.value,
+            parentId: rootCategory.id
+          });
+          const children = applyStoredOrder(
+            getChildren(categories, rootCategory.id),
+            orderPreferences,
+            childScopeKey
+          );
           const rootDocuments = getResourcesForCategory(resources, rootCategory.id);
           const visibleRootDocuments = hasSearchQuery
             ? rootDocuments.filter(resourceMatchesSearch)
@@ -898,6 +923,7 @@ export async function renderAdminView(container) {
       fetchResources(),
       fetchCurrentUser()
     ]);
+    let orderPreferences = await initCategoryOrderPreferences(currentUser?.id ?? "anonymous", categories);
 
     let feedback = "";
     let feedbackClass = "is-success";
@@ -915,6 +941,7 @@ export async function renderAdminView(container) {
         fetchCategories(),
         fetchResources()
       ]);
+      orderPreferences = await initCategoryOrderPreferences(currentUser?.id ?? "anonymous", categories);
     };
 
     const getPendingDeletionProfile = () =>
@@ -1190,7 +1217,9 @@ export async function renderAdminView(container) {
                 ${buildAdminContentShortcutMarkup()}
                 ${buildCategoryTreeMarkup(categories, resources, {
                   categorySortOrderEnabled,
-                  adminSearchQuery: adminContentSearchQuery
+                  adminSearchQuery: adminContentSearchQuery,
+                  orderPreferences,
+                  currentUserId: currentUser?.id ?? "anonymous"
                 }) || '<p class="empty-state">Aucune categorie enregistree.</p>'}
               </div>
             </article>

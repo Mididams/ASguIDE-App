@@ -10,6 +10,7 @@ import {
 } from "./favorites.js";
 
 const CATEGORY_ORDER_STORAGE_KEY = "asguide.categoryOrderPreferences";
+const RESOURCE_ORDER_STORAGE_KEY = "asguide.resourceOrderPreferences";
 
 function normalizeText(value) {
   return String(value ?? "")
@@ -84,11 +85,30 @@ function writeCategoryOrderPreferences(preferences) {
   }
 }
 
-function getCategoryOrderScopeKey({ userId, categoryType, parentId = null }) {
+function readResourceOrderPreferences() {
+  try {
+    const rawValue = window.localStorage.getItem(RESOURCE_ORDER_STORAGE_KEY);
+    const parsed = rawValue ? JSON.parse(rawValue) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (error) {
+    console.error("Impossible de lire les preferences de tri des documents.", error);
+    return {};
+  }
+}
+
+function writeResourceOrderPreferences(preferences) {
+  try {
+    window.localStorage.setItem(RESOURCE_ORDER_STORAGE_KEY, JSON.stringify(preferences));
+  } catch (error) {
+    console.error("Impossible d'enregistrer les preferences de tri des documents.", error);
+  }
+}
+
+export function getCategoryOrderScopeKey({ userId, categoryType, parentId = null }) {
   return `${String(userId || "anonymous")}::${normalizeText(categoryType) || "all"}::${parentId == null ? "root" : String(parentId)}`;
 }
 
-function applyStoredOrder(items, preferences, scopeKey) {
+export function applyStoredOrder(items, preferences, scopeKey) {
   const preferredOrder = Array.isArray(preferences?.[scopeKey]) ? preferences[scopeKey].map(String) : [];
 
   if (!preferredOrder.length) {
@@ -110,16 +130,46 @@ function applyStoredOrder(items, preferences, scopeKey) {
 }
 
 function saveStoredOrder(preferences, scopeKey, orderedIds) {
-  const nextPreferences = {
+  return {
     ...preferences,
     [scopeKey]: orderedIds.map((id) => String(id))
   };
+}
 
-  writeCategoryOrderPreferences(nextPreferences);
-  return nextPreferences;
+function getResourceOrderScopeKey({ userId, categoryId }) {
+  return `${String(userId || "anonymous")}::${String(categoryId || "uncategorized")}`;
+}
+
+function applyStoredResourceOrder(items, preferences, scopeKey) {
+  const preferredOrder = Array.isArray(preferences?.[scopeKey]) ? preferences[scopeKey].map(String) : [];
+
+  if (!preferredOrder.length) {
+    return [...items];
+  }
+
+  const orderIndex = new Map(preferredOrder.map((id, index) => [String(id), index]));
+
+  return [...items].sort((a, b) => {
+    const aIndex = orderIndex.has(String(a.id)) ? orderIndex.get(String(a.id)) : Number.MAX_SAFE_INTEGER;
+    const bIndex = orderIndex.has(String(b.id)) ? orderIndex.get(String(b.id)) : Number.MAX_SAFE_INTEGER;
+
+    if (aIndex !== bIndex) {
+      return aIndex - bIndex;
+    }
+
+    return compareBySortOrder(a, b);
+  });
 }
 
 function getUserScopedPreferences(preferences, userId) {
+  const prefix = `${String(userId || "anonymous")}::`;
+
+  return Object.fromEntries(
+    Object.entries(preferences).filter(([key, value]) => key.startsWith(prefix) && Array.isArray(value))
+  );
+}
+
+function getUserScopedResourcePreferences(preferences, userId) {
   const prefix = `${String(userId || "anonymous")}::`;
 
   return Object.fromEntries(
@@ -145,6 +195,28 @@ async function fetchRemoteCategoryOrderPreferences(userId) {
     (data ?? []).map((entry) => [
       String(entry.scope_key),
       Array.isArray(entry.ordered_category_ids) ? entry.ordered_category_ids.map(String) : []
+    ])
+  );
+}
+
+async function fetchRemoteResourceOrderPreferences(userId) {
+  if (!userId || userId === "anonymous") {
+    return {};
+  }
+
+  const { data, error } = await supabaseClient
+    .from("user_resource_orders")
+    .select("scope_key, ordered_resource_ids")
+    .eq("user_id", userId);
+
+  if (error) {
+    throw error;
+  }
+
+  return Object.fromEntries(
+    (data ?? []).map((entry) => [
+      String(entry.scope_key),
+      Array.isArray(entry.ordered_resource_ids) ? entry.ordered_resource_ids.map(String) : []
     ])
   );
 }
@@ -183,7 +255,91 @@ async function syncLocalCategoryOrdersToRemote(userId, preferences) {
   }
 }
 
-async function initCategoryOrderPreferences(userId) {
+function buildDefaultCategoryOrderPreferences(userId, categories) {
+  const categoryMap = buildCategoryMap(categories);
+  const preferences = {};
+
+  ["medicament", "protocole", "annuaire", "code"].forEach((categoryType) => {
+    const rootScopeKey = getCategoryOrderScopeKey({
+      userId,
+      categoryType,
+      parentId: null
+    });
+    const roots = getRootCategoriesForType(categories, categoryType, categoryMap);
+
+    if (roots.length) {
+      preferences[rootScopeKey] = roots.map((category) => String(category.id));
+    }
+
+    roots.forEach((rootCategory) => {
+      const childScopeKey = getCategoryOrderScopeKey({
+        userId,
+        categoryType,
+        parentId: rootCategory.id
+      });
+      const children = getDirectChildren(categories, rootCategory.id);
+
+      if (children.length) {
+        preferences[childScopeKey] = children.map((category) => String(category.id));
+      }
+    });
+  });
+
+  return preferences;
+}
+
+function buildDefaultResourceOrderPreferences(userId, resources) {
+  const groupedResources = resources.reduce((accumulator, resource) => {
+    const scopeKey = getResourceOrderScopeKey({
+      userId,
+      categoryId: resource.category_id
+    });
+
+    if (!accumulator[scopeKey]) {
+      accumulator[scopeKey] = [];
+    }
+
+    accumulator[scopeKey].push(String(resource.id));
+    return accumulator;
+  }, {});
+
+  return groupedResources;
+}
+
+async function syncLocalResourceOrdersToRemote(userId, preferences) {
+  if (!userId || userId === "anonymous") {
+    return;
+  }
+
+  const scopedPreferences = getUserScopedResourcePreferences(preferences, userId);
+  const entries = Object.entries(scopedPreferences);
+
+  if (!entries.length) {
+    return;
+  }
+
+  const payload = entries.map(([scopeKey, orderedResourceIds]) => {
+    const [, categoryId = "uncategorized"] = scopeKey.split("::");
+
+    return {
+      user_id: userId,
+      scope_key: scopeKey,
+      category_id: categoryId === "uncategorized" ? null : categoryId,
+      ordered_resource_ids: orderedResourceIds,
+      updated_at: new Date().toISOString()
+    };
+  });
+
+  const { error } = await supabaseClient
+    .from("user_resource_orders")
+    .upsert(payload, { onConflict: "user_id,scope_key" });
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function initCategoryOrderPreferences(userId, categories = []) {
   const localPreferences = readCategoryOrderPreferences();
 
   if (!userId || userId === "anonymous") {
@@ -194,8 +350,13 @@ async function initCategoryOrderPreferences(userId) {
     const remotePreferences = await fetchRemoteCategoryOrderPreferences(userId);
 
     if (!Object.keys(remotePreferences).length) {
-      await syncLocalCategoryOrdersToRemote(userId, localPreferences);
-      return localPreferences;
+      const seededPreferences = Object.keys(localPreferences).length
+        ? localPreferences
+        : buildDefaultCategoryOrderPreferences(userId, categories);
+
+      writeCategoryOrderPreferences(seededPreferences);
+      await syncLocalCategoryOrdersToRemote(userId, seededPreferences);
+      return seededPreferences;
     }
 
     const mergedPreferences = {
@@ -211,8 +372,42 @@ async function initCategoryOrderPreferences(userId) {
   }
 }
 
+async function initResourceOrderPreferences(userId, resources) {
+  const localPreferences = readResourceOrderPreferences();
+
+  if (!userId || userId === "anonymous") {
+    return localPreferences;
+  }
+
+  try {
+    const remotePreferences = await fetchRemoteResourceOrderPreferences(userId);
+
+    if (!Object.keys(remotePreferences).length) {
+      const seededPreferences = Object.keys(localPreferences).length
+        ? localPreferences
+        : buildDefaultResourceOrderPreferences(userId, resources);
+
+      writeResourceOrderPreferences(seededPreferences);
+      await syncLocalResourceOrdersToRemote(userId, seededPreferences);
+      return seededPreferences;
+    }
+
+    const mergedPreferences = {
+      ...localPreferences,
+      ...remotePreferences
+    };
+
+    writeResourceOrderPreferences(mergedPreferences);
+    return mergedPreferences;
+  } catch (error) {
+    console.error("Impossible de synchroniser l'ordre des documents.", error);
+    return localPreferences;
+  }
+}
+
 async function persistCategoryOrderPreference(userId, preferences, scopeKey, categoryType, parentId, orderedIds) {
   const nextPreferences = saveStoredOrder(preferences, scopeKey, orderedIds);
+  writeCategoryOrderPreferences(nextPreferences);
 
   if (!userId || userId === "anonymous") {
     return nextPreferences;
@@ -238,6 +433,38 @@ async function persistCategoryOrderPreference(userId, preferences, scopeKey, cat
     }
   } catch (error) {
     console.error("Impossible d'enregistrer l'ordre des categories en ligne.", error);
+  }
+
+  return nextPreferences;
+}
+
+async function persistResourceOrderPreference(userId, preferences, scopeKey, categoryId, orderedIds) {
+  const nextPreferences = saveStoredOrder(preferences, scopeKey, orderedIds);
+  writeResourceOrderPreferences(nextPreferences);
+
+  if (!userId || userId === "anonymous") {
+    return nextPreferences;
+  }
+
+  try {
+    const { error } = await supabaseClient
+      .from("user_resource_orders")
+      .upsert(
+        {
+          user_id: userId,
+          scope_key: scopeKey,
+          category_id: categoryId || null,
+          ordered_resource_ids: orderedIds.map(String),
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: "user_id,scope_key" }
+      );
+
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.error("Impossible de synchroniser l'ordre des documents distants.", error);
   }
 
   return nextPreferences;
@@ -383,13 +610,18 @@ function renderSelectableList(items, selectedId, options = {}) {
   `;
 }
 
-function renderDocuments(resources, favoriteIds, fallbackMessage) {
+function renderDocuments(resources, favoriteIds, fallbackMessage, options = {}) {
+  const {
+    listAttr = "",
+    sortable = false
+  } = options;
+
   if (!resources.length) {
     return `<p class="empty-state">${fallbackMessage}</p>`;
   }
 
   return `
-    <div class="document-list">
+    <div class="document-list" ${listAttr}>
       ${resources
         .map((resource) => {
           const isFavorite = favoriteIds.includes(String(resource.id));
@@ -402,9 +634,10 @@ function renderDocuments(resources, favoriteIds, fallbackMessage) {
               : "Lien non disponible";
 
           return `
-            <article class="document-card ${isFavorite ? "is-favorite" : ""}">
+            <article class="document-card ${isFavorite ? "is-favorite" : ""}" ${sortable ? `data-resource-sort-id="${resource.id}"` : ""}>
               <div class="document-card-header">
                 <div class="document-badge-group">
+                  ${sortable ? '<span class="document-drag-handle" aria-hidden="true">⋮⋮</span>' : ""}
                   <span class="doc-icon">${getResourceIcon(resource.type)}</span>
                   <p class="card-tag">${getResourceTypeLabel(resource.type)}</p>
                 </div>
@@ -785,8 +1018,9 @@ export async function renderCategoriesView(container, options = {}) {
   try {
     await initFavorites();
     const currentUserId = await getCurrentUserId();
-    let orderPreferences = await initCategoryOrderPreferences(currentUserId);
     const [allCategories, allResources] = await Promise.all([fetchCategories(), fetchResources()]);
+    let orderPreferences = await initCategoryOrderPreferences(currentUserId, allCategories);
+    let resourceOrderPreferences = await initResourceOrderPreferences(currentUserId, allResources);
     const allCategoryMap = buildCategoryMap(allCategories);
     const categories = getFilteredCategories(allCategories, categoryType, allCategoryMap);
     const resources = getFilteredResources(allResources, categories);
@@ -830,9 +1064,17 @@ export async function renderCategoriesView(container, options = {}) {
         })
         .length;
       const activeDocumentCategoryId = selectedSubcategory?.id ?? selectedRoot?.id ?? null;
-      const documents = resources
-        .filter((resource) => String(resource.category_id) === String(activeDocumentCategoryId))
-        .sort(compareBySortOrder);
+      const documentScopeKey = getResourceOrderScopeKey({
+        userId: currentUserId,
+        categoryId: activeDocumentCategoryId
+      });
+      const documents = applyStoredResourceOrder(
+        resources
+          .filter((resource) => String(resource.category_id) === String(activeDocumentCategoryId))
+          .sort(compareBySortOrder),
+        resourceOrderPreferences,
+        documentScopeKey
+      );
       const breadcrumb = buildBreadcrumb(selectedRoot, selectedSubcategory);
       const searchResults = buildSearchResults(searchQuery, categories, resources, rootCategories, categoryMap);
       const hasRootCategories = rootCategories.length > 0;
@@ -881,7 +1123,11 @@ export async function renderCategoriesView(container, options = {}) {
                           ? "Aucun document disponible."
                           : selectedSubcategory
                             ? "Aucun document n'est lie a cette sous-categorie."
-                            : "Aucun document n'est lie a cette categorie."
+                            : "Aucun document n'est lie a cette categorie.",
+                        {
+                          listAttr: `data-resource-sort-list="documents" data-resource-sort-scope="${documentScopeKey}" data-resource-category-id="${activeDocumentCategoryId ?? ""}"`,
+                          sortable: true
+                        }
                       )}
                     `
               }
@@ -982,7 +1228,11 @@ export async function renderCategoriesView(container, options = {}) {
                     ? "Aucun document disponible."
                     : selectedSubcategory
                     ? "Aucun document n'est lie a cette sous-categorie."
-                    : "Aucun document n'est lie a cette categorie."
+                    : "Aucun document n'est lie a cette categorie.",
+                  {
+                    listAttr: `data-resource-sort-list="documents" data-resource-sort-scope="${documentScopeKey}" data-resource-category-id="${activeDocumentCategoryId ?? ""}"`,
+                    sortable: true
+                  }
                 )}
               </div>
             </section>
@@ -1049,6 +1299,42 @@ export async function renderCategoriesView(container, options = {}) {
                 scopeKey,
                 categoryType,
                 parentScope === "root" ? null : parentScope,
+                orderedIds
+              );
+              render();
+            }
+          });
+        });
+
+        container.querySelectorAll("[data-resource-sort-list='documents']").forEach((list) => {
+          if (list._sortableInstance) {
+            list._sortableInstance.destroy();
+          }
+
+          list._sortableInstance = window.Sortable.create(list, {
+            animation: 180,
+            easing: "cubic-bezier(0.2, 0, 0, 1)",
+            handle: ".document-drag-handle",
+            draggable: "[data-resource-sort-id]",
+            ghostClass: "is-drag-ghost",
+            chosenClass: "is-drag-chosen",
+            dragClass: "is-drag-active",
+            onEnd: async () => {
+              const scopeKey = list.dataset.resourceSortScope;
+              const categoryId = list.dataset.resourceCategoryId || null;
+              const orderedIds = Array.from(list.querySelectorAll("[data-resource-sort-id]"))
+                .map((item) => item.dataset.resourceSortId)
+                .filter(Boolean);
+
+              if (!scopeKey || !orderedIds.length) {
+                return;
+              }
+
+              resourceOrderPreferences = await persistResourceOrderPreference(
+                currentUserId,
+                resourceOrderPreferences,
+                scopeKey,
+                categoryId,
                 orderedIds
               );
               render();
