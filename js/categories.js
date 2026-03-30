@@ -651,6 +651,15 @@ function enhanceMobileFocus(container) {
   }
 }
 
+function focusDesktopSubcategoriesColumn(container) {
+  if (isMobileCategoriesLayout()) {
+    return;
+  }
+
+  const target = container.querySelector(".categories-columns .category-column:nth-child(2)");
+  target?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function alignDocumentsWithSelection(container) {
   if (isMobileCategoriesLayout()) {
     return;
@@ -1061,6 +1070,8 @@ export async function renderCategoriesView(container, options = {}) {
             mobilePanel = selectedSubcategoryId ? "documents" : (refreshedSubcategories.length ? "subcategories" : "documents");
             pendingMobilePanelFocus = Boolean(mobilePanel);
             render();
+          } else if (!selectedSubcategoryId) {
+            focusDesktopSubcategoriesColumn(container);
           }
         });
       });
@@ -1077,6 +1088,8 @@ export async function renderCategoriesView(container, options = {}) {
             mobilePanel = refreshedSubcategories.length ? "subcategories" : "documents";
             pendingMobilePanelFocus = Boolean(mobilePanel);
             render();
+          } else {
+            focusDesktopSubcategoriesColumn(container);
           }
         });
       });
