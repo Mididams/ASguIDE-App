@@ -676,6 +676,24 @@ function alignDocumentsWithSelection(container) {
   documentsBody.style.marginTop = `${offset}px`;
 }
 
+function focusMobileStageSheet(container) {
+  if (!isMobileCategoriesLayout()) {
+    return;
+  }
+
+  const sheet = container.querySelector(".mobile-stage-sheet");
+
+  if (!sheet) {
+    return;
+  }
+
+  requestAnimationFrame(() => {
+    sheet.scrollTop = 0;
+    sheet.focus({ preventScroll: true });
+    sheet.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+  });
+}
+
 function isMobileCategoriesLayout() {
   return window.innerWidth <= 960;
 }
@@ -770,6 +788,7 @@ export async function renderCategoriesView(container, options = {}) {
     let selectedSubcategoryId = initialSubcategoryId ?? null;
     let searchQuery = "";
     let mobilePanel = null;
+    let pendingMobilePanelFocus = false;
 
     function render() {
       const favoriteIds = getFavoriteIds();
@@ -816,7 +835,7 @@ export async function renderCategoriesView(container, options = {}) {
       const mobilePanelMarkup = isMobileCategoriesLayout() && mobilePanel
         ? `
           <div class="mobile-stage-overlay" data-mobile-stage-close>
-            <div class="mobile-stage-sheet" role="dialog" aria-modal="true" aria-label="${mobilePanel === "subcategories" ? "Sous-categories" : "Documents"}">
+            <div class="mobile-stage-sheet" role="dialog" aria-modal="true" aria-label="${mobilePanel === "subcategories" ? "Sous-categories" : "Documents"}" tabindex="-1">
               <div class="mobile-stage-header">
                 <button class="button button-secondary button-small" type="button" data-mobile-stage-back>
                   ${mobilePanel === "documents" && subcategories.length ? "Retour" : "Fermer"}
@@ -1040,6 +1059,7 @@ export async function renderCategoriesView(container, options = {}) {
           if (isMobileCategoriesLayout()) {
             const refreshedSubcategories = selectedRootId ? getDirectChildren(categories, selectedRootId) : [];
             mobilePanel = selectedSubcategoryId ? "documents" : (refreshedSubcategories.length ? "subcategories" : "documents");
+            pendingMobilePanelFocus = Boolean(mobilePanel);
             render();
           }
         });
@@ -1055,6 +1075,7 @@ export async function renderCategoriesView(container, options = {}) {
           if (isMobileCategoriesLayout()) {
             const refreshedSubcategories = selectedRootId ? getDirectChildren(categories, selectedRootId) : [];
             mobilePanel = refreshedSubcategories.length ? "subcategories" : "documents";
+            pendingMobilePanelFocus = Boolean(mobilePanel);
             render();
           }
         });
@@ -1064,6 +1085,7 @@ export async function renderCategoriesView(container, options = {}) {
         button.addEventListener("click", () => {
           selectedSubcategoryId = button.dataset.subcategoryId;
           mobilePanel = isMobileCategoriesLayout() ? "documents" : null;
+          pendingMobilePanelFocus = Boolean(mobilePanel);
           render();
         });
       });
@@ -1101,6 +1123,11 @@ export async function renderCategoriesView(container, options = {}) {
 
       attachSharedDocumentEvents(container, render, resources);
       alignDocumentsWithSelection(container);
+
+      if (pendingMobilePanelFocus) {
+        pendingMobilePanelFocus = false;
+        focusMobileStageSheet(container);
+      }
     }
 
     render();
