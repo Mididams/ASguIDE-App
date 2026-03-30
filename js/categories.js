@@ -660,6 +660,7 @@ function alignDocumentsWithSelection(container) {
   const selectedRootButton = container.querySelector("[data-root-id].is-selected");
   const referenceButton = selectedSubcategoryButton ?? selectedRootButton;
   const documentsBody = container.querySelector("#documentsStageBody");
+  const documentCard = documentsBody?.querySelector(".document-card");
 
   if (!referenceButton || !documentsBody) {
     return;
@@ -667,7 +668,10 @@ function alignDocumentsWithSelection(container) {
 
   const referenceRect = referenceButton.getBoundingClientRect();
   const bodyRect = documentsBody.getBoundingClientRect();
-  const offset = Math.max(0, referenceRect.top - bodyRect.top);
+  const documentRect = documentCard?.getBoundingClientRect() ?? null;
+  const referenceCenter = referenceRect.top + (referenceRect.height / 2);
+  const documentCenterOffset = documentRect ? (documentRect.height / 2) : 0;
+  const offset = Math.max(0, referenceCenter - bodyRect.top - documentCenterOffset);
 
   documentsBody.style.marginTop = `${offset}px`;
 }
