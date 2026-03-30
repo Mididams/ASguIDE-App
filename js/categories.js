@@ -651,20 +651,25 @@ function enhanceMobileFocus(container) {
   }
 }
 
-function focusDesktopStageColumn(container, stage) {
+function alignDocumentsWithSelection(container) {
   if (isMobileCategoriesLayout()) {
     return;
   }
 
-  let target = null;
+  const selectedSubcategoryButton = container.querySelector("[data-subcategory-id].is-selected");
+  const selectedRootButton = container.querySelector("[data-root-id].is-selected");
+  const referenceButton = selectedSubcategoryButton ?? selectedRootButton;
+  const documentsBody = container.querySelector("#documentsStageBody");
 
-  if (stage === "subcategories") {
-    target = container.querySelector(".categories-columns .category-column:nth-child(2)");
-  } else if (stage === "documents") {
-    target = container.querySelector(".category-column-documents");
+  if (!referenceButton || !documentsBody) {
+    return;
   }
 
-  target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const referenceRect = referenceButton.getBoundingClientRect();
+  const bodyRect = documentsBody.getBoundingClientRect();
+  const offset = Math.max(0, referenceRect.top - bodyRect.top);
+
+  documentsBody.style.marginTop = `${offset}px`;
 }
 
 function isMobileCategoriesLayout() {
@@ -934,16 +939,18 @@ export async function renderCategoriesView(container, options = {}) {
                 <p class="section-kicker">Etape 3</p>
                 <h3>Documents</h3>
               </div>
-              <p class="column-context">${documentsTitle}</p>
-              ${renderDocuments(
-                documents,
-                favoriteIds,
-                !hasRootCategories
-                  ? "Aucun document disponible."
-                  : selectedSubcategory
-                  ? "Aucun document n'est lie a cette sous-categorie."
-                  : "Aucun document n'est lie a cette categorie."
-              )}
+              <div id="documentsStageBody" class="documents-stage-body">
+                <p class="column-context">${documentsTitle}</p>
+                ${renderDocuments(
+                  documents,
+                  favoriteIds,
+                  !hasRootCategories
+                    ? "Aucun document disponible."
+                    : selectedSubcategory
+                    ? "Aucun document n'est lie a cette sous-categorie."
+                    : "Aucun document n'est lie a cette categorie."
+                )}
+              </div>
             </section>
           </div>
           ${mobilePanelMarkup}
@@ -1030,8 +1037,6 @@ export async function renderCategoriesView(container, options = {}) {
             const refreshedSubcategories = selectedRootId ? getDirectChildren(categories, selectedRootId) : [];
             mobilePanel = selectedSubcategoryId ? "documents" : (refreshedSubcategories.length ? "subcategories" : "documents");
             render();
-          } else {
-            focusDesktopStageColumn(container, selectedSubcategoryId ? "documents" : "subcategories");
           }
         });
       });
@@ -1047,8 +1052,6 @@ export async function renderCategoriesView(container, options = {}) {
             const refreshedSubcategories = selectedRootId ? getDirectChildren(categories, selectedRootId) : [];
             mobilePanel = refreshedSubcategories.length ? "subcategories" : "documents";
             render();
-          } else {
-            focusDesktopStageColumn(container, subcategories.length ? "subcategories" : "documents");
           }
         });
       });
@@ -1058,10 +1061,6 @@ export async function renderCategoriesView(container, options = {}) {
           selectedSubcategoryId = button.dataset.subcategoryId;
           mobilePanel = isMobileCategoriesLayout() ? "documents" : null;
           render();
-
-          if (!isMobileCategoriesLayout()) {
-            focusDesktopStageColumn(container, "documents");
-          }
         });
       });
 
@@ -1097,6 +1096,7 @@ export async function renderCategoriesView(container, options = {}) {
       });
 
       attachSharedDocumentEvents(container, render, resources);
+      alignDocumentsWithSelection(container);
     }
 
     render();

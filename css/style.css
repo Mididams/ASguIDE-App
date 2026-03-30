@@ -854,6 +854,10 @@ input:focus,
   font-weight: 600;
 }
 
+.documents-stage-body {
+  transition: margin-top 0.22s ease;
+}
+
 .category-list,
 .document-list {
   display: grid;
