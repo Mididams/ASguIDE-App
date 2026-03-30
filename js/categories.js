@@ -651,6 +651,22 @@ function enhanceMobileFocus(container) {
   }
 }
 
+function focusDesktopStageColumn(container, stage) {
+  if (isMobileCategoriesLayout()) {
+    return;
+  }
+
+  let target = null;
+
+  if (stage === "subcategories") {
+    target = container.querySelector(".categories-columns .category-column:nth-child(2)");
+  } else if (stage === "documents") {
+    target = container.querySelector(".category-column-documents");
+  }
+
+  target?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function isMobileCategoriesLayout() {
   return window.innerWidth <= 960;
 }
@@ -1015,7 +1031,7 @@ export async function renderCategoriesView(container, options = {}) {
             mobilePanel = selectedSubcategoryId ? "documents" : (refreshedSubcategories.length ? "subcategories" : "documents");
             render();
           } else {
-            enhanceMobileFocus(container);
+            focusDesktopStageColumn(container, selectedSubcategoryId ? "documents" : "subcategories");
           }
         });
       });
@@ -1032,7 +1048,7 @@ export async function renderCategoriesView(container, options = {}) {
             mobilePanel = refreshedSubcategories.length ? "subcategories" : "documents";
             render();
           } else {
-            enhanceMobileFocus(container);
+            focusDesktopStageColumn(container, subcategories.length ? "subcategories" : "documents");
           }
         });
       });
@@ -1044,7 +1060,7 @@ export async function renderCategoriesView(container, options = {}) {
           render();
 
           if (!isMobileCategoriesLayout()) {
-            enhanceMobileFocus(container);
+            focusDesktopStageColumn(container, "documents");
           }
         });
       });
