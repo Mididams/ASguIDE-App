@@ -939,7 +939,9 @@ export async function renderCategoriesView(container, options = {}) {
                 helperText: (category) => {
                   const subcategoryCount = getDirectChildren(categories, category.id).length;
                   const documentCount = countDocumentsForCategory(resources, category.id);
-                  return `${subcategoryCount} sous-categorie(s) • ${documentCount} document(s)`;
+                  return subcategoryCount
+                    ? `${subcategoryCount} sous-categorie(s)`
+                    : `${documentCount} document(s)`;
                 }
               })}
             </section>
