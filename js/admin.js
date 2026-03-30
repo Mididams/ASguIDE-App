@@ -371,6 +371,126 @@ function getUploadFeedbackMarkup(feedback) {
   return `<p class="feedback ${feedback.type}">${feedback.message}</p>`;
 }
 
+function buildCategoryEditModalMarkup(editingCategory, categories, selectedCategoryType, feedback) {
+  if (!editingCategory) {
+    return "";
+  }
+
+  return `
+    <div class="admin-modal-backdrop" data-close-category-editor>
+      <div class="admin-modal-card admin-editor-modal-card" role="dialog" aria-modal="true" aria-labelledby="categoryEditorTitle">
+        <p class="section-kicker">Modifier</p>
+        <h4 id="categoryEditorTitle">Modifier une categorie / sous-categorie</h4>
+        <form id="inlineCategoryEditForm" class="stack admin-upload-form">
+          <div class="admin-form-grid">
+            <label class="field">
+              <span>Nom</span>
+              <input name="name" type="text" value="${editingCategory.name ?? ""}" required>
+            </label>
+
+            <label class="field">
+              <span>Categorie parente</span>
+              <select id="modalCategoryParentSelect" name="parent_id" class="search-input">
+                ${buildParentCategoryOptions(
+                  categories.filter((category) => String(category.id) !== String(editingCategory.id)),
+                  editingCategory.parent_id ?? ""
+                )}
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Type</span>
+              <select id="modalCategoryTypeSelect" name="category_type" class="search-input">
+                ${CATEGORY_TYPE_OPTIONS
+                  .map(
+                    (option) => `
+                      <option value="${option.value}" ${selectedCategoryType === option.value ? "selected" : ""}>
+                        ${option.label}
+                      </option>
+                    `
+                  )
+                  .join("")}
+              </select>
+            </label>
+          </div>
+
+          <p id="modalCategoryTypeHint" class="muted"></p>
+
+          <div class="admin-form-actions">
+            <button class="button button-primary" type="submit">Enregistrer</button>
+            <button class="button button-secondary" type="button" data-cancel-category-editor>Annuler</button>
+            ${getUploadFeedbackMarkup(feedback)}
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+function buildDocumentEditModalMarkup(editingDocument, categories, feedback) {
+  if (!editingDocument) {
+    return "";
+  }
+
+  return `
+    <div class="admin-modal-backdrop" data-close-document-editor>
+      <div class="admin-modal-card admin-editor-modal-card" role="dialog" aria-modal="true" aria-labelledby="documentEditorTitle">
+        <p class="section-kicker">Modifier</p>
+        <h4 id="documentEditorTitle">Modifier un document</h4>
+        <p class="muted">Le champ fichier reste optionnel si vous ne remplacez pas le fichier existant.</p>
+
+        <form id="inlineDocumentEditForm" class="stack admin-upload-form">
+          <div class="admin-form-grid">
+            <label class="field">
+              <span>Titre</span>
+              <input name="title" type="text" value="${editingDocument.title ?? ""}" required>
+            </label>
+
+            <label class="field">
+              <span>Type</span>
+              <select id="modalResourceTypeSelect" name="type" class="search-input" required>
+                ${["pdf", "word", "excel", "image", "link"].map((type) => `
+                  <option value="${type}" ${editingDocument.type === type ? "selected" : ""}>${type}</option>
+                `).join("")}
+              </select>
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Description</span>
+            <textarea name="description" class="search-input admin-textarea" rows="4" placeholder="Description optionnelle du document">${editingDocument.description ?? ""}</textarea>
+          </label>
+
+          <div class="admin-form-grid">
+            <label class="field">
+              <span>Categorie / sous-categorie</span>
+              <select name="category_id" class="search-input" required>
+                ${buildCategoryTargetOptions(categories, editingDocument.category_id ?? "")}
+              </select>
+            </label>
+
+            <label id="modalExternalUrlField" class="field ${editingDocument.type === "link" ? "" : "hidden"}">
+              <span>Lien externe</span>
+              <input name="external_url" type="url" class="search-input" placeholder="https://..." value="${editingDocument.external_url ?? ""}">
+            </label>
+          </div>
+
+          <label id="modalFileField" class="field ${editingDocument.type === "link" ? "hidden" : ""}">
+            <span>Fichier (laisser vide pour conserver l'existant)</span>
+            <input name="file" type="file" class="search-input">
+          </label>
+
+          <div class="admin-form-actions">
+            <button class="button button-primary" type="submit">Enregistrer</button>
+            <button class="button button-secondary" type="button" data-cancel-document-editor>Annuler</button>
+            ${getUploadFeedbackMarkup(feedback)}
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
 function buildParentCategoryOptions(categories, selectedId = "") {
   const categoryMap = buildCategoryMap(categories);
 
@@ -952,21 +1072,21 @@ export async function renderAdminView(container) {
 
           <div class="admin-grid admin-grid-wide">
             <article class="admin-card admin-upload-card">
-              <p class="section-kicker">${editingCategory ? "Modifier" : "Creer"}</p>
-              <h4>${editingCategory ? "Modifier une categorie / sous-categorie" : "Ajouter une categorie / sous-categorie"}</h4>
+              <p class="section-kicker">Creer</p>
+              <h4>Ajouter une categorie / sous-categorie</h4>
               <form id="categoryForm" class="stack admin-upload-form">
                 <div class="admin-form-grid">
                   <label class="field">
                     <span>Nom</span>
-                    <input name="name" type="text" value="${editingCategory?.name ?? ""}" required>
+                    <input name="name" type="text" value="" required>
                   </label>
 
                   <label class="field">
                     <span>Categorie parente</span>
                     <select name="parent_id" class="search-input">
                       ${buildParentCategoryOptions(
-                        categories.filter((category) => String(category.id) !== String(editingCategoryId)),
-                        editingCategory?.parent_id ?? ""
+                        categories,
+                        ""
                       )}
                     </select>
                   </label>
@@ -990,30 +1110,29 @@ export async function renderAdminView(container) {
                 <p id="categoryTypeHint" class="muted"></p>
 
                 <div class="admin-form-actions">
-                  <button class="button button-primary" type="submit">${editingCategory ? "Enregistrer" : "Creer"}</button>
-                  ${editingCategory ? '<button id="cancelCategoryEdit" class="button button-secondary" type="button">Annuler</button>' : ""}
+                  <button class="button button-primary" type="submit">Creer</button>
                   ${getUploadFeedbackMarkup(categoryFeedback)}
                 </div>
               </form>
             </article>
 
             <article class="admin-card admin-upload-card">
-              <p class="section-kicker">${editingDocument ? "Modifier" : "Ajouter"}</p>
-              <h4>${editingDocument ? "Modifier un document" : "Uploader un document"}</h4>
+              <p class="section-kicker">Ajouter</p>
+              <h4>Uploader un document</h4>
               <p class="muted">Bucket prive + signed URL. Le champ fichier reste optionnel en mode edition si vous ne remplacez pas le fichier.</p>
 
               <form id="resourceUploadForm" class="stack admin-upload-form">
                 <div class="admin-form-grid">
                   <label class="field">
                     <span>Titre</span>
-                    <input name="title" type="text" value="${editingDocument?.title ?? ""}" required>
+                    <input name="title" type="text" value="" required>
                   </label>
 
                   <label class="field">
                     <span>Type</span>
                     <select id="resourceTypeSelect" name="type" class="search-input" required>
                       ${["pdf", "word", "excel", "image", "link"].map((type) => `
-                        <option value="${type}" ${editingDocument?.type === type ? "selected" : ""}>${type}</option>
+                        <option value="${type}" ${type === "pdf" ? "selected" : ""}>${type}</option>
                       `).join("")}
                     </select>
                   </label>
@@ -1021,31 +1140,30 @@ export async function renderAdminView(container) {
 
                 <label class="field">
                   <span>Description</span>
-                  <textarea name="description" class="search-input admin-textarea" rows="4" placeholder="Description optionnelle du document">${editingDocument?.description ?? ""}</textarea>
+                  <textarea name="description" class="search-input admin-textarea" rows="4" placeholder="Description optionnelle du document"></textarea>
                 </label>
 
                 <div class="admin-form-grid">
                   <label class="field">
                     <span>Categorie / sous-categorie</span>
                     <select name="category_id" class="search-input" required>
-                      ${buildCategoryTargetOptions(categories, editingDocument?.category_id ?? "")}
+                      ${buildCategoryTargetOptions(categories, "")}
                     </select>
                   </label>
 
-                  <label id="externalUrlField" class="field ${editingDocument?.type === "link" ? "" : "hidden"}">
+                  <label id="externalUrlField" class="field hidden">
                     <span>Lien externe</span>
-                    <input name="external_url" type="url" class="search-input" placeholder="https://..." value="${editingDocument?.external_url ?? ""}">
+                    <input name="external_url" type="url" class="search-input" placeholder="https://..." value="">
                   </label>
                 </div>
 
-                <label id="fileField" class="field ${editingDocument?.type === "link" ? "hidden" : ""}">
-                  <span>Fichier ${editingDocument ? "(laisser vide pour conserver l'existant)" : ""}</span>
+                <label id="fileField" class="field">
+                  <span>Fichier</span>
                   <input name="file" type="file" class="search-input">
                 </label>
 
                 <div class="admin-form-actions">
-                  <button id="uploadSubmitBtn" class="button button-primary" type="submit">${editingDocument ? "Enregistrer" : "Uploader"}</button>
-                  ${editingDocument ? '<button id="cancelDocumentEdit" class="button button-secondary" type="button">Annuler</button>' : ""}
+                  <button id="uploadSubmitBtn" class="button button-primary" type="submit">Uploader</button>
                   ${getUploadFeedbackMarkup(documentFeedback)}
                 </div>
               </form>
@@ -1150,6 +1268,8 @@ export async function renderAdminView(container) {
               `
               : ""
           }
+          ${buildCategoryEditModalMarkup(editingCategory, categories, selectedCategoryType, categoryFeedback)}
+          ${buildDocumentEditModalMarkup(editingDocument, categories, documentFeedback)}
         </div>
       `;
 
@@ -1162,6 +1282,14 @@ export async function renderAdminView(container) {
       const fileField = container.querySelector("#fileField");
       const externalUrlInput = container.querySelector('input[name="external_url"]');
       const fileInput = container.querySelector('input[name="file"]');
+      const modalCategoryParentSelect = container.querySelector("#modalCategoryParentSelect");
+      const modalCategoryTypeSelect = container.querySelector("#modalCategoryTypeSelect");
+      const modalCategoryTypeHint = container.querySelector("#modalCategoryTypeHint");
+      const modalResourceTypeSelect = container.querySelector("#modalResourceTypeSelect");
+      const modalExternalUrlField = container.querySelector("#modalExternalUrlField");
+      const modalFileField = container.querySelector("#modalFileField");
+      const modalExternalUrlInput = container.querySelector('#inlineDocumentEditForm input[name="external_url"]');
+      const modalFileInput = container.querySelector('#inlineDocumentEditForm input[name="file"]');
 
       adminContentSearchInput?.addEventListener("input", (event) => {
         const nextQuery = String(event.currentTarget.value ?? "");
@@ -1181,52 +1309,72 @@ export async function renderAdminView(container) {
         });
       });
 
-      function syncCategoryTypeField() {
-        const parentId = String(categoryParentSelect?.value ?? "").trim();
-        const parentCategory = categories.find((category) => String(category.id) === parentId) ?? null;
+      function syncCategoryTypeField(parentSelect, typeSelect, hintNode) {
+        const parentId = String(parentSelect?.value ?? "").trim();
+        const parentCategory = categories.find((category) => String(category.id) === String(parentId)) ?? null;
         const parentType = resolveCategoryType(parentCategory, categoryMap);
 
         if (parentCategory) {
-          categoryTypeSelect.value = parentType || categoryTypeSelect.value;
-          categoryTypeSelect.disabled = true;
-          categoryTypeHint.textContent = `Type herite du parent : ${getTypeLabel(parentType)}.`;
+          typeSelect.value = parentType || typeSelect.value;
+          typeSelect.disabled = true;
+          hintNode.textContent = `Type herite du parent : ${getTypeLabel(parentType)}.`;
           return;
         }
 
-        categoryTypeSelect.disabled = false;
-        categoryTypeHint.textContent = "Le type choisi definira la famille de navigation de cette categorie racine.";
+        typeSelect.disabled = false;
+        hintNode.textContent = "Le type choisi definira la famille de navigation de cette categorie racine.";
       }
 
-      function syncDocumentFields() {
-        const isLinkType = typeSelect?.value === "link";
+      function syncDocumentFields(resourceTypeSelect, resourceExternalUrlField, resourceFileField, resourceExternalUrlInput, resourceFileInput, isEditMode = false) {
+        const isLinkType = resourceTypeSelect?.value === "link";
 
-        externalUrlField?.classList.toggle("hidden", !isLinkType);
-        fileField?.classList.toggle("hidden", isLinkType);
+        resourceExternalUrlField?.classList.toggle("hidden", !isLinkType);
+        resourceFileField?.classList.toggle("hidden", isLinkType);
 
-        if (externalUrlInput) {
-          externalUrlInput.required = isLinkType;
+        if (resourceExternalUrlInput) {
+          resourceExternalUrlInput.required = isLinkType;
         }
 
-        if (fileInput) {
-          fileInput.required = !isLinkType && !editingDocument;
+        if (resourceFileInput) {
+          resourceFileInput.required = !isLinkType && !isEditMode;
         }
       }
 
-      typeSelect?.addEventListener("change", syncDocumentFields);
-      categoryParentSelect?.addEventListener("change", syncCategoryTypeField);
-      syncDocumentFields();
-      syncCategoryTypeField();
+      typeSelect?.addEventListener("change", () => syncDocumentFields(typeSelect, externalUrlField, fileField, externalUrlInput, fileInput, false));
+      modalResourceTypeSelect?.addEventListener("change", () => syncDocumentFields(modalResourceTypeSelect, modalExternalUrlField, modalFileField, modalExternalUrlInput, modalFileInput, true));
+      categoryParentSelect?.addEventListener("change", () => syncCategoryTypeField(categoryParentSelect, categoryTypeSelect, categoryTypeHint));
+      modalCategoryParentSelect?.addEventListener("change", () => syncCategoryTypeField(modalCategoryParentSelect, modalCategoryTypeSelect, modalCategoryTypeHint));
+      syncDocumentFields(typeSelect, externalUrlField, fileField, externalUrlInput, fileInput, false);
+      syncDocumentFields(modalResourceTypeSelect, modalExternalUrlField, modalFileField, modalExternalUrlInput, modalFileInput, true);
+      syncCategoryTypeField(categoryParentSelect, categoryTypeSelect, categoryTypeHint);
+      syncCategoryTypeField(modalCategoryParentSelect, modalCategoryTypeSelect, modalCategoryTypeHint);
 
-      container.querySelector("#cancelCategoryEdit")?.addEventListener("click", () => {
+      container.querySelector("[data-cancel-category-editor]")?.addEventListener("click", () => {
         editingCategoryId = null;
         categoryFeedback = { message: "", type: "is-success" };
         render();
       });
 
-      container.querySelector("#cancelDocumentEdit")?.addEventListener("click", () => {
+      container.querySelector("[data-close-category-editor]")?.addEventListener("click", (event) => {
+        if (event.target === event.currentTarget) {
+          editingCategoryId = null;
+          categoryFeedback = { message: "", type: "is-success" };
+          render();
+        }
+      });
+
+      container.querySelector("[data-cancel-document-editor]")?.addEventListener("click", () => {
         editingDocumentId = null;
         documentFeedback = { message: "", type: "is-success" };
         render();
+      });
+
+      container.querySelector("[data-close-document-editor]")?.addEventListener("click", (event) => {
+        if (event.target === event.currentTarget) {
+          editingDocumentId = null;
+          documentFeedback = { message: "", type: "is-success" };
+          render();
+        }
       });
 
       container.querySelectorAll("[data-approve-id]").forEach((button) => {
@@ -1555,54 +1703,25 @@ export async function renderAdminView(container) {
         }
 
         try {
-          if (editingCategory) {
-            const oldParentId = editingCategory.parent_id ?? null;
-            const siblings = categories.filter(
-              (category) =>
-                String(category.parent_id ?? "") === String(parentId ?? "") &&
-                String(category.id) !== String(editingCategory.id)
-            );
-            const payload = {
-              name,
-              parent_id: parentId,
-              type: resolvedType
-            };
+          const siblings = categories.filter(
+            (category) => String(category.parent_id ?? "") === String(parentId ?? "")
+          );
+          const payload = {
+            name,
+            parent_id: parentId,
+            type: resolvedType
+          };
 
-            if (hasCategorySortOrder(categories)) {
-              payload.sort_order =
-                String(oldParentId ?? "") === String(parentId ?? "")
-                  ? editingCategory.sort_order
-                  : getNextSortOrder(siblings);
-            }
-
-            await updateCategory(editingCategory.id, payload);
-
-            categoryFeedback = {
-              message: "Categorie mise a jour avec succes.",
-              type: "is-success"
-            };
-            editingCategoryId = null;
-          } else {
-            const siblings = categories.filter(
-              (category) => String(category.parent_id ?? "") === String(parentId ?? "")
-            );
-            const payload = {
-              name,
-              parent_id: parentId,
-              type: resolvedType
-            };
-
-            if (hasCategorySortOrder(categories)) {
-              payload.sort_order = getNextSortOrder(siblings);
-            }
-
-            await createCategory(payload);
-
-            categoryFeedback = {
-              message: "Categorie creee avec succes.",
-              type: "is-success"
-            };
+          if (hasCategorySortOrder(categories)) {
+            payload.sort_order = getNextSortOrder(siblings);
           }
+
+          await createCategory(payload);
+
+          categoryFeedback = {
+            message: "Categorie creee avec succes.",
+            type: "is-success"
+          };
 
           await refreshData();
         } catch (error) {
@@ -1645,7 +1764,7 @@ export async function renderAdminView(container) {
           return;
         }
 
-        if (!isLinkType && !editingDocument && !(file instanceof File && file.name)) {
+        if (!isLinkType && !(file instanceof File && file.name)) {
           documentFeedback = {
             message: "Veuillez selectionner un fichier.",
             type: "is-warning"
@@ -1658,9 +1777,174 @@ export async function renderAdminView(container) {
           const siblings = resources.filter(
             (resource) =>
               String(resource.category_id) === String(categoryId) &&
-              String(resource.id) !== String(editingDocument?.id ?? "")
+              String(resource.id) !== ""
           );
-          const previousFilePath = editingDocument?.file_path ?? null;
+
+          let payload = {
+            title,
+            description: description || null,
+            type,
+            category_id: categoryId,
+            external_url: isLinkType ? externalUrl : null
+          };
+
+          if (hasResourceSortOrder(resources)) {
+            payload.sort_order = getNextSortOrder(siblings);
+          }
+
+          if (isLinkType) {
+            payload = {
+              ...payload,
+              file_path: null,
+              file_name: null,
+              mime_type: null,
+              file_size: null
+            };
+          } else if (file instanceof File && file.name) {
+            if (file.size > 20 * 1024 * 1024) {
+              throw new Error("Le fichier depasse 20 Mo.");
+            }
+
+            const storageData = await uploadFileToStorage({
+              file,
+              categoryId,
+              userId: currentUser.id
+            });
+
+            payload = {
+              ...payload,
+              file_path: storageData.filePath,
+              file_name: storageData.fileName,
+              mime_type: storageData.mimeType,
+              file_size: storageData.fileSize,
+              external_url: null
+            };
+          } else {
+            throw new Error("Veuillez selectionner un fichier.");
+          }
+
+          await insertResource(payload);
+          documentFeedback = {
+            message: "Document ajoute avec succes.",
+            type: "is-success"
+          };
+
+          await refreshData();
+        } catch (error) {
+          console.error(error);
+          documentFeedback = {
+            message: `Operation impossible : ${error.message ?? "erreur inconnue"}`,
+            type: "is-error"
+          };
+        }
+
+        render();
+      });
+
+      container.querySelector("#inlineCategoryEditForm")?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        if (!editingCategory) {
+          return;
+        }
+
+        const formData = new FormData(event.currentTarget);
+        const name = String(formData.get("name") ?? "").trim();
+        const parentId = String(formData.get("parent_id") ?? "").trim() || null;
+        const selectedType = String(formData.get("category_type") ?? "").trim();
+        const parentCategory = parentId
+          ? categories.find((category) => String(category.id) === String(parentId)) ?? null
+          : null;
+        const resolvedType = resolveCategoryType(parentCategory, categoryMap) || selectedType;
+
+        if (!name || !resolvedType) {
+          categoryFeedback = {
+            message: "Le nom et le type de la categorie sont obligatoires.",
+            type: "is-warning"
+          };
+          render();
+          return;
+        }
+
+        try {
+          const oldParentId = editingCategory.parent_id ?? null;
+          const siblings = categories.filter(
+            (category) =>
+              String(category.parent_id ?? "") === String(parentId ?? "") &&
+              String(category.id) !== String(editingCategory.id)
+          );
+          const payload = {
+            name,
+            parent_id: parentId,
+            type: resolvedType
+          };
+
+          if (hasCategorySortOrder(categories)) {
+            payload.sort_order =
+              String(oldParentId ?? "") === String(parentId ?? "")
+                ? editingCategory.sort_order
+                : getNextSortOrder(siblings);
+          }
+
+          await updateCategory(editingCategory.id, payload);
+          editingCategoryId = null;
+          categoryFeedback = {
+            message: "Categorie mise a jour avec succes.",
+            type: "is-success"
+          };
+          await refreshData();
+        } catch (error) {
+          console.error(error);
+          categoryFeedback = {
+            message: `Enregistrement impossible pour cette categorie : ${error.message ?? "erreur inconnue"}`,
+            type: "is-error"
+          };
+        }
+
+        render();
+      });
+
+      container.querySelector("#inlineDocumentEditForm")?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        if (!editingDocument) {
+          return;
+        }
+
+        const formData = new FormData(event.currentTarget);
+        const title = String(formData.get("title") ?? "").trim();
+        const description = String(formData.get("description") ?? "").trim();
+        const type = String(formData.get("type") ?? "").trim();
+        const categoryId = String(formData.get("category_id") ?? "").trim();
+        const externalUrl = String(formData.get("external_url") ?? "").trim();
+        const file = formData.get("file");
+        const isLinkType = type === "link";
+
+        if (!title || !type || !categoryId) {
+          documentFeedback = {
+            message: "Titre, type et categorie sont obligatoires.",
+            type: "is-warning"
+          };
+          render();
+          return;
+        }
+
+        if (isLinkType && !externalUrl) {
+          documentFeedback = {
+            message: "Veuillez renseigner un lien externe pour le type link.",
+            type: "is-warning"
+          };
+          render();
+          return;
+        }
+
+        try {
+          const siblings = resources.filter(
+            (resource) =>
+              String(resource.category_id) === String(categoryId) &&
+              String(resource.id) !== String(editingDocument.id)
+          );
+          const previousFilePath = editingDocument.file_path ?? null;
           let uploadedReplacementPath = null;
 
           let payload = {
@@ -1672,7 +1956,7 @@ export async function renderAdminView(container) {
           };
 
           if (hasResourceSortOrder(resources)) {
-            payload.sort_order = editingDocument && String(editingDocument.category_id) === String(categoryId)
+            payload.sort_order = String(editingDocument.category_id) === String(categoryId)
               ? editingDocument.sort_order
               : getNextSortOrder(siblings);
           }
@@ -1705,7 +1989,7 @@ export async function renderAdminView(container) {
               file_size: storageData.fileSize,
               external_url: null
             };
-          } else if (editingDocument) {
+          } else {
             payload = {
               ...payload,
               file_path: editingDocument.file_path,
@@ -1715,30 +1999,21 @@ export async function renderAdminView(container) {
             };
           }
 
-          if (editingDocument) {
-            await updateResource(editingDocument.id, payload);
+          await updateResource(editingDocument.id, payload);
 
-            if (isLinkType && previousFilePath) {
-              await deleteFileFromStorage(previousFilePath);
-            }
-
-            if (!isLinkType && uploadedReplacementPath && previousFilePath && previousFilePath !== uploadedReplacementPath) {
-              await deleteFileFromStorage(previousFilePath);
-            }
-
-            documentFeedback = {
-              message: "Document mis a jour avec succes.",
-              type: "is-success"
-            };
-            editingDocumentId = null;
-          } else {
-            await insertResource(payload);
-            documentFeedback = {
-              message: "Document ajoute avec succes.",
-              type: "is-success"
-            };
+          if (isLinkType && previousFilePath) {
+            await deleteFileFromStorage(previousFilePath);
           }
 
+          if (!isLinkType && uploadedReplacementPath && previousFilePath && previousFilePath !== uploadedReplacementPath) {
+            await deleteFileFromStorage(previousFilePath);
+          }
+
+          editingDocumentId = null;
+          documentFeedback = {
+            message: "Document mis a jour avec succes.",
+            type: "is-success"
+          };
           await refreshData();
         } catch (error) {
           console.error(error);

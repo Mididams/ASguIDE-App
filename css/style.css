@@ -1316,6 +1316,12 @@ input:focus,
   box-shadow: 0 28px 60px rgba(15, 23, 42, 0.2);
 }
 
+.admin-editor-modal-card {
+  width: min(100%, 820px);
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+}
+
 .admin-delete-user-modal-backdrop {
   justify-content: flex-end;
   padding:
