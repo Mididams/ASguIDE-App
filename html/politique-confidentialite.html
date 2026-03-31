@@ -154,47 +154,6 @@
       }
     }
 
-    .mobile-shortcuts {
-      display: none;
-    }
-
-    @media (max-width: 960px) {
-      .mobile-shortcuts {
-        position: fixed;
-        left: 14px;
-        right: 14px;
-        bottom: 0;
-        z-index: 60;
-        display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
-        gap: 8px;
-        padding: 10px 10px max(10px, env(safe-area-inset-bottom));
-        background: rgba(255, 255, 255, 0.92);
-        border: 1px solid rgba(15, 23, 42, 0.08);
-        border-radius: 22px;
-        box-shadow: 0 20px 44px rgba(15, 23, 42, 0.16);
-        backdrop-filter: blur(16px);
-      }
-
-      .mobile-shortcuts-link {
-        display: grid;
-        place-items: center;
-        min-height: 52px;
-        padding: 8px 4px;
-        color: var(--text-muted);
-        border-radius: 16px;
-        font-size: 0.7rem;
-        font-weight: 800;
-        line-height: 1.15;
-        text-align: center;
-        text-decoration: none;
-      }
-
-      .mobile-shortcuts-link.is-active {
-        color: var(--primary);
-        background: rgba(204, 251, 241, 0.72);
-      }
-    }
   </style>
 </head>
 <body>
@@ -377,12 +336,41 @@
       </div>
     </footer>
   </div>
-  <nav class="mobile-shortcuts" aria-label="Raccourcis mobiles">
-    <a class="mobile-shortcuts-link" href="../index.html">Accueil</a>
-    <a class="mobile-shortcuts-link" href="./memo-medicaments.html">Medicaments</a>
-    <a class="mobile-shortcuts-link" href="./memo-medicaments-urgences.html">Urgences</a>
-    <a class="mobile-shortcuts-link" href="./memo-antibiotiques.html">Antibiotiques</a>
-    <a class="mobile-shortcuts-link is-active" href="./politique-confidentialite.html">Confidentialite</a>
+  <nav class="mobile-nav" aria-label="Navigation mobile principale">
+    <a class="mobile-nav-button" href="../index.html" data-app-view="medications">
+      <span class="mobile-nav-icon" aria-hidden="true">💊</span>
+      <span class="mobile-nav-label">Médicaments</span>
+    </a>
+    <a class="mobile-nav-button" href="../index.html" data-app-view="protocols">
+      <span class="mobile-nav-icon" aria-hidden="true">📋</span>
+      <span class="mobile-nav-label">Protocoles / Procédures</span>
+    </a>
+    <a class="mobile-nav-button" href="../index.html" data-app-view="favorites">
+      <span class="mobile-nav-icon" aria-hidden="true">★</span>
+      <span class="mobile-nav-label">Favoris</span>
+    </a>
+    <a class="mobile-nav-button" href="../index.html" data-app-view="emergency-meds">
+      <span class="mobile-nav-icon" aria-hidden="true">⚡</span>
+      <span class="mobile-nav-label">Médocs d'urgence</span>
+    </a>
+    <a class="mobile-nav-button" href="../index.html" data-app-view="directories">
+      <span class="mobile-nav-icon" aria-hidden="true">☎</span>
+      <span class="mobile-nav-label">Annuaires</span>
+    </a>
+    <a class="mobile-nav-button" href="../index.html" data-app-view="codes">
+      <span class="mobile-nav-icon" aria-hidden="true">#</span>
+      <span class="mobile-nav-label">Codes / Liens</span>
+    </a>
   </nav>
+  <script>
+    document.querySelectorAll("[data-app-view]").forEach((link) => {
+      link.addEventListener("click", () => {
+        window.localStorage.setItem(
+          "asguide.appState",
+          JSON.stringify({ currentView: link.dataset.appView, viewContext: {} })
+        );
+      });
+    });
+  </script>
 </body>
 </html>

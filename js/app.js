@@ -279,12 +279,35 @@ function getNavLabel(item) {
   return item.label;
 }
 
-function navigateTo(view, context = {}) {
+function shouldFocusContentOnMobile() {
+  return window.matchMedia?.("(max-width: 960px)").matches ?? false;
+}
+
+function scrollToActiveContent() {
+  const target = elements.mainContent ?? elements.mainNav ?? elements.appPanel;
+
+  if (!target) {
+    return;
+  }
+
+  const top = Math.max(window.scrollY + target.getBoundingClientRect().top - 12, 0);
+  const behavior = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+
+  window.scrollTo({ top, behavior });
+}
+
+async function navigateTo(view, context = {}, options = {}) {
   state.currentView = view;
   state.viewContext = context ?? {};
   persistAppState();
   renderNavigation();
-  renderCurrentView();
+  await renderCurrentView();
+
+  if (options.focusContentOnMobile && shouldFocusContentOnMobile()) {
+    window.requestAnimationFrame(() => {
+      scrollToActiveContent();
+    });
+  }
 }
 
 function renderNavigation() {
@@ -329,7 +352,7 @@ function renderNavigation() {
 
   elements.mobileNav.querySelectorAll("[data-mobile-view]").forEach((button) => {
     button.addEventListener("click", () => {
-      navigateTo(button.dataset.mobileView);
+      navigateTo(button.dataset.mobileView, {}, { focusContentOnMobile: true });
     });
   });
 }

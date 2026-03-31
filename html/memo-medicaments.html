@@ -118,21 +118,21 @@
       text-decoration: underline;
       text-underline-offset: 3px;
     }
-    .mobile-shortcuts {
+    .mobile-nav {
       display: none;
     }
     @media (max-width: 960px) {
       .page-shell {
         padding-bottom: calc(116px + env(safe-area-inset-bottom));
       }
-      .mobile-shortcuts {
+      .mobile-nav {
         position: fixed;
         left: 14px;
         right: 14px;
         bottom: 0;
         z-index: 60;
         display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-template-columns: repeat(6, minmax(0, 1fr));
         gap: 8px;
         padding: 10px 10px max(10px, env(safe-area-inset-bottom));
         background: rgba(255, 255, 255, 0.92);
@@ -141,22 +141,34 @@
         box-shadow: 0 20px 44px rgba(15, 23, 42, 0.16);
         backdrop-filter: blur(16px);
       }
-      .mobile-shortcuts-link {
+      .mobile-nav-button {
         display: grid;
-        place-items: center;
-        min-height: 52px;
+        justify-items: center;
+        gap: 4px;
+        min-width: 0;
         padding: 8px 4px;
         color: var(--text-muted);
+        background: transparent;
         border-radius: 16px;
-        font-size: 0.7rem;
-        font-weight: 800;
-        line-height: 1.15;
-        text-align: center;
         text-decoration: none;
       }
-      .mobile-shortcuts-link.is-active {
-        color: var(--primary);
+      .mobile-nav-button.is-active {
+        color: #115e59;
         background: rgba(204, 251, 241, 0.72);
+      }
+      .mobile-nav-icon {
+        font-size: 1.1rem;
+        line-height: 1;
+      }
+      .mobile-nav-label {
+        max-width: 100%;
+        overflow: hidden;
+        font-size: 0.62rem;
+        font-weight: 800;
+        line-height: 1.1;
+        text-align: center;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
     }
   </style>
@@ -179,12 +191,41 @@
       </div>
     </div>
   </footer>
-  <nav class="mobile-shortcuts" aria-label="Raccourcis mobiles">
-    <a class="mobile-shortcuts-link" href="../index.html">Accueil</a>
-    <a class="mobile-shortcuts-link is-active" href="./memo-medicaments.html">Medicaments</a>
-    <a class="mobile-shortcuts-link" href="./memo-medicaments-urgences.html">Urgences</a>
-    <a class="mobile-shortcuts-link" href="./memo-antibiotiques.html">Antibiotiques</a>
-    <a class="mobile-shortcuts-link" href="./memo-SMIT.html">SMIT</a>
+  <nav class="mobile-nav" aria-label="Navigation mobile principale">
+    <a class="mobile-nav-button is-active" href="../index.html" data-app-view="medications">
+      <span class="mobile-nav-icon" aria-hidden="true">💊</span>
+      <span class="mobile-nav-label">Médicaments</span>
+    </a>
+    <a class="mobile-nav-button" href="../index.html" data-app-view="protocols">
+      <span class="mobile-nav-icon" aria-hidden="true">📋</span>
+      <span class="mobile-nav-label">Protocoles / Procédures</span>
+    </a>
+    <a class="mobile-nav-button" href="../index.html" data-app-view="favorites">
+      <span class="mobile-nav-icon" aria-hidden="true">★</span>
+      <span class="mobile-nav-label">Favoris</span>
+    </a>
+    <a class="mobile-nav-button" href="../index.html" data-app-view="emergency-meds">
+      <span class="mobile-nav-icon" aria-hidden="true">⚡</span>
+      <span class="mobile-nav-label">Médocs d'urgence</span>
+    </a>
+    <a class="mobile-nav-button" href="../index.html" data-app-view="directories">
+      <span class="mobile-nav-icon" aria-hidden="true">☎</span>
+      <span class="mobile-nav-label">Annuaires</span>
+    </a>
+    <a class="mobile-nav-button" href="../index.html" data-app-view="codes">
+      <span class="mobile-nav-icon" aria-hidden="true">#</span>
+      <span class="mobile-nav-label">Codes / Liens</span>
+    </a>
   </nav>
+  <script>
+    document.querySelectorAll("[data-app-view]").forEach((link) => {
+      link.addEventListener("click", () => {
+        window.localStorage.setItem(
+          "asguide.appState",
+          JSON.stringify({ currentView: link.dataset.appView, viewContext: {} })
+        );
+      });
+    });
+  </script>
 </body>
 </html>
