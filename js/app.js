@@ -33,6 +33,8 @@ const state = {
   viewContext: {}
 };
 
+const APP_STATE_STORAGE_KEY = "asguide.appState";
+
 const NAV_ITEMS = [
   {
     id: "medications",
@@ -67,7 +69,7 @@ const NAV_ITEMS = [
   },
   {
     id: "codes",
-    label: "Codes",
+    label: "Codes / Liens",
     kind: "generic",
     categoryType: "code",
     emptyMessage: "Aucune categorie code disponible."
@@ -146,6 +148,58 @@ const MOBILE_NAV_ICONS = {
   directories: "☎",
   codes: "#"
 };
+
+function persistAppState() {
+  try {
+    window.localStorage.setItem(
+      APP_STATE_STORAGE_KEY,
+      JSON.stringify({
+        currentView: state.currentView,
+        viewContext: state.viewContext ?? {}
+      })
+    );
+  } catch (error) {
+    console.error("Impossible d'enregistrer l'etat de navigation.", error);
+  }
+}
+
+function restoreAppState() {
+  try {
+    const rawValue = window.localStorage.getItem(APP_STATE_STORAGE_KEY);
+
+    if (!rawValue) {
+      return;
+    }
+
+    const parsed = JSON.parse(rawValue);
+
+    if (!parsed || typeof parsed !== "object") {
+      return;
+    }
+
+    if (typeof parsed.currentView === "string" && navigationMap.has(parsed.currentView)) {
+      state.currentView = parsed.currentView;
+    }
+
+    if (parsed.viewContext && typeof parsed.viewContext === "object") {
+      state.viewContext = parsed.viewContext;
+    }
+  } catch (error) {
+    console.error("Impossible de restaurer l'etat de navigation.", error);
+  }
+}
+
+function clearStoredAppState() {
+  try {
+    window.localStorage.removeItem(APP_STATE_STORAGE_KEY);
+  } catch (error) {
+    console.error("Impossible d'effacer l'etat de navigation.", error);
+  }
+}
+
+function finishBoot() {
+  document.body.classList.remove("app-booting");
+}
 
 function setFeedback(message = "", type = "is-error") {
   elements.authMessage.textContent = message;
@@ -228,6 +282,7 @@ function getNavLabel(item) {
 function navigateTo(view, context = {}) {
   state.currentView = view;
   state.viewContext = context ?? {};
+  persistAppState();
   renderNavigation();
   renderCurrentView();
 }
@@ -375,7 +430,9 @@ async function refreshAuthState() {
     state.user = null;
     state.profile = null;
     await initFavorites({ force: true });
+    clearStoredAppState();
     renderAccessState();
+    finishBoot();
     return;
   }
 
@@ -397,6 +454,7 @@ async function refreshAuthState() {
 
   await initFavorites({ force: true });
   renderAccessState();
+  finishBoot();
 }
 
 async function handleLoginSubmit(event) {
@@ -516,6 +574,8 @@ async function handleSignupSubmit(event) {
 async function handleLogout() {
   await signOut();
   state.currentView = NAV_ITEMS[0].id;
+  state.viewContext = {};
+  clearStoredAppState();
   setAuthMode("login", { preserveFeedback: true });
   setFeedback("");
   await refreshAuthState();
@@ -584,10 +644,25 @@ function registerEvents() {
 
     navigateTo(view, context);
   });
+
+  window.addEventListener("app:view-context-updated", (event) => {
+    const context = event?.detail?.context;
+
+    if (!context || typeof context !== "object") {
+      return;
+    }
+
+    state.viewContext = {
+      ...state.viewContext,
+      ...context
+    };
+    persistAppState();
+  });
 }
 
 async function initApp() {
   setAuthMode("login", { preserveFeedback: true });
+  restoreAppState();
   registerEvents();
   await refreshAuthState();
 }

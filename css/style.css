@@ -37,6 +37,30 @@ body {
     linear-gradient(180deg, #f8fcfb 0%, var(--bg) 100%);
 }
 
+body.app-booting {
+  overflow: hidden;
+}
+
+body.app-booting .page-shell {
+  visibility: hidden;
+}
+
+body.app-booting::after {
+  content: "Restauration de la session...";
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 20;
+  padding: 14px 18px;
+  color: var(--primary);
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  transform: translate(-50%, -50%);
+}
+
 button,
 input {
   font: inherit;

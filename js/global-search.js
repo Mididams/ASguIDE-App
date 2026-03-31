@@ -5,7 +5,7 @@ const VIEW_LABELS = {
   medications: "Medicaments",
   protocols: "Protocoles / Procedures",
   directories: "Annuaires",
-  codes: "Codes"
+  codes: "Codes / Liens"
 };
 
 const TYPE_TO_VIEW = {

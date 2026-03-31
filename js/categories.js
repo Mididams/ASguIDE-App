@@ -496,7 +496,7 @@ function getSectionLabel(categoryType) {
     case "annuaire":
       return "Annuaires";
     case "code":
-      return "Codes";
+      return "Codes / Liens";
     default:
       return "Favoris";
   }
@@ -902,7 +902,8 @@ function alignDocumentsWithSelection(container) {
   const selectedRootButton = container.querySelector("[data-root-id].is-selected");
   const referenceButton = selectedSubcategoryButton ?? selectedRootButton;
   const documentsBody = container.querySelector("#documentsStageBody");
-  const documentCard = documentsBody?.querySelector(".document-card");
+  const documentCards = documentsBody ? Array.from(documentsBody.querySelectorAll(".document-card")) : [];
+  const documentList = documentsBody?.querySelector(".document-list");
 
   if (!referenceButton || !documentsBody) {
     return;
@@ -910,12 +911,26 @@ function alignDocumentsWithSelection(container) {
 
   const referenceRect = referenceButton.getBoundingClientRect();
   const bodyRect = documentsBody.getBoundingClientRect();
-  const documentRect = documentCard?.getBoundingClientRect() ?? null;
+  const targetRect = documentCards.length > 1
+    ? documentList?.getBoundingClientRect() ?? null
+    : documentCards[0]?.getBoundingClientRect() ?? null;
   const referenceCenter = referenceRect.top + (referenceRect.height / 2);
-  const documentCenterOffset = documentRect ? (documentRect.height / 2) : 0;
+  const documentCenterOffset = targetRect ? ((targetRect.top - bodyRect.top) + (targetRect.height / 2)) : 0;
   const offset = Math.max(0, referenceCenter - bodyRect.top - documentCenterOffset);
 
   documentsBody.style.marginTop = `${offset}px`;
+}
+
+function syncCategoryViewContext(categoryType, rootId, subcategoryId) {
+  window.dispatchEvent(new CustomEvent("app:view-context-updated", {
+    detail: {
+      context: {
+        categoryType,
+        rootId: rootId ?? null,
+        subcategoryId: subcategoryId ?? null
+      }
+    }
+  }));
 }
 
 function focusMobileStageSheet(container) {
@@ -1351,6 +1366,7 @@ export async function renderCategoriesView(container, options = {}) {
           mobilePanel = isMobileCategoriesLayout()
             ? (selectedSubcategoryId ? "documents" : null)
             : null;
+          syncCategoryViewContext(categoryType, selectedRootId, selectedSubcategoryId);
           render();
 
           if (isMobileCategoriesLayout()) {
@@ -1369,6 +1385,7 @@ export async function renderCategoriesView(container, options = {}) {
           selectedRootId = button.dataset.rootId;
           selectedSubcategoryId = null;
           mobilePanel = null;
+          syncCategoryViewContext(categoryType, selectedRootId, selectedSubcategoryId);
           render();
 
           if (isMobileCategoriesLayout()) {
@@ -1387,6 +1404,7 @@ export async function renderCategoriesView(container, options = {}) {
           selectedSubcategoryId = button.dataset.subcategoryId;
           mobilePanel = isMobileCategoriesLayout() ? "documents" : null;
           pendingMobilePanelFocus = Boolean(mobilePanel);
+          syncCategoryViewContext(categoryType, selectedRootId, selectedSubcategoryId);
           render();
         });
       });
