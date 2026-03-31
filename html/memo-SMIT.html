@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f766e">
+  <title>Fiches complètes SMIT</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #eff6f6;
+      --surface: rgba(255, 255, 255, 0.94);
+      --border: rgba(15, 23, 42, 0.08);
+      --text: #12232f;
+      --text-muted: #58707d;
+      --primary: #0f766e;
+      --shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+      --radius-xl: 24px;
+      --max-width: 1180px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Manrope", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(15, 118, 110, 0.12), transparent 28%),
+        radial-gradient(circle at right, rgba(20, 184, 166, 0.12), transparent 24%),
+        linear-gradient(180deg, #f8fcfb 0%, var(--bg) 100%);
+    }
+    .app-background {
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.65)),
+        linear-gradient(90deg, rgba(15, 118, 110, 0.04) 1px, transparent 1px),
+        linear-gradient(rgba(15, 118, 110, 0.04) 1px, transparent 1px);
+      background-size: auto, 32px 32px, 32px 32px;
+      pointer-events: none;
+    }
+    .page-shell {
+      position: relative;
+      z-index: 1;
+      width: min(100%, var(--max-width));
+      margin: 0 auto;
+      padding: 24px;
+      display: grid;
+      gap: 20px;
+    }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+    }
+    .placeholder {
+      padding: 24px;
+      display: grid;
+      gap: 12px;
+      text-align: center;
+    }
+    .eyebrow {
+      margin: 0;
+      color: var(--primary);
+      font-size: 0.82rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    h1, p { margin: 0; }
+    p { color: var(--text-muted); }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      width: fit-content;
+      margin: 8px auto 0;
+      padding: 0 16px;
+      color: var(--primary);
+      background: rgba(204, 251, 241, 0.7);
+      border: 1px solid rgba(15, 118, 110, 0.18);
+      border-radius: 999px;
+      font-weight: 800;
+      text-decoration: none;
+    }
+    .site-footer {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 16px 24px;
+    }
+    .site-footer-links {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+    .site-footer-links::before { content: ""; }
+    .site-footer-link {
+      color: var(--primary);
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .site-footer-link + .site-footer-link::before {
+      content: "-";
+      margin-right: 18px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .site-footer-link:hover,
+    .site-footer-link:focus-visible {
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-background"></div>
+  <main class="page-shell">
+    <section class="panel placeholder">
+      <p class="eyebrow">Mémo</p>
+      <h1>Fiches complètes SMIT</h1>
+      <p>Cette page est prête à être remplie.</p>
+      <a class="back-link" href="../index.html">Retour à l'application</a>
+    </section>
+  </main>
+  <footer class="page-shell">
+    <div class="panel site-footer" aria-label="Liens légaux">
+      <div class="site-footer-links">
+        <a class="site-footer-link" href="../mentions-legales.html">Mentions légales</a>
+        <a class="site-footer-link" href="../politique-confidentialite.html">Politique de confidentialité</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
