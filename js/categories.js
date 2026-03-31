@@ -259,7 +259,7 @@ function buildDefaultCategoryOrderPreferences(userId, categories) {
   const categoryMap = buildCategoryMap(categories);
   const preferences = {};
 
-  ["medicament", "protocole", "annuaire", "code"].forEach((categoryType) => {
+  ["medicament", "protocole", "service", "annuaire", "code"].forEach((categoryType) => {
     const rootScopeKey = getCategoryOrderScopeKey({
       userId,
       categoryType,
@@ -478,6 +478,7 @@ function inferTypeFromName(name) {
   const normalizedName = normalizeText(name);
 
   if (normalizedName === "medicaments" || normalizedName === "medicament") return "medicament";
+  if (normalizedName === "services" || normalizedName === "service") return "service";
   if (normalizedName === "annuaires" || normalizedName === "annuaire") return "annuaire";
   if (normalizedName === "codes" || normalizedName === "code") return "code";
   if (normalizedName === "protocoles et procedures" || normalizedName === "protocoles" || normalizedName === "protocoles/procedures") {
@@ -493,6 +494,8 @@ function getSectionLabel(categoryType) {
       return "Médicaments";
     case "protocole":
       return "Protocoles / Procédures";
+    case "service":
+      return "Services";
     case "annuaire":
       return "Annuaires";
     case "code":
@@ -990,7 +993,7 @@ export async function renderFavoritesViewWithOptions(container, options = {}) {
         ? `Aucun favori enregistre pour la rubrique ${title}.`
         : "Aucun favori enregistre pour le moment.";
       const helperText = categoryType
-        ? `Cette vue affiche uniquement les favoris de la rubrique ${title}. Le bouton Favoris du menu reste global.`
+        ? `Cette vue affiche uniquement les favoris de la rubrique ${title}. Le bouton Favoris reste global.`
         : "Cette vue affiche tous vos favoris, toutes rubriques confondues.";
       const kickerLabel = categoryType ? `Favoris - ${title}` : "Favoris";
 

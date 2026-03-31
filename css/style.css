@@ -211,9 +211,26 @@ input {
   background: rgba(255, 255, 255, 0.96);
 }
 
+.global-search-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
 .global-search-bar .button {
   min-height: 40px;
   padding: 0 16px;
+}
+
+.favorites-shortcut-btn {
+  white-space: nowrap;
+}
+
+.favorites-shortcut-btn.is-active {
+  color: var(--primary-strong);
+  background: rgba(204, 251, 241, 0.92);
+  border-color: rgba(15, 118, 110, 0.24);
 }
 
 .topbar-buttons {
@@ -1662,12 +1679,14 @@ input:focus,
   }
 
   .global-search-bar,
-  .topbar-search {
+  .topbar-search,
+  .global-search-actions {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .topbar-search .button {
+  .topbar-search .button,
+  .global-search-actions .button {
     width: 100%;
   }
 

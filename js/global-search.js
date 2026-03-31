@@ -4,6 +4,7 @@ import { createOpenDocumentUrl } from "./uploads.js";
 const VIEW_LABELS = {
   medications: "Medicaments",
   protocols: "Protocoles / Procedures",
+  services: "Services",
   directories: "Annuaires",
   codes: "Codes / Liens"
 };
@@ -11,6 +12,7 @@ const VIEW_LABELS = {
 const TYPE_TO_VIEW = {
   medicament: "medications",
   protocole: "protocols",
+  service: "services",
   annuaire: "directories",
   code: "codes"
 };
@@ -40,6 +42,7 @@ function inferTypeFromName(name) {
   const normalizedName = normalizeText(name);
 
   if (normalizedName === "medicaments" || normalizedName === "medicament") return "medicament";
+  if (normalizedName === "services" || normalizedName === "service") return "service";
   if (normalizedName === "annuaires" || normalizedName === "annuaire") return "annuaire";
   if (normalizedName === "codes" || normalizedName === "code") return "code";
   if (normalizedName === "protocoles et procedures" || normalizedName === "protocoles" || normalizedName === "protocoles/procedures") {
@@ -229,7 +232,7 @@ function renderResults(results, query) {
     return `
       <div class="empty-panel">
         <p class="empty-state">Lance une recherche globale pour parcourir tout le contenu.</p>
-        <p class="muted">Exemples : amiodarone, AVC, annuaire, douleur, protocole.</p>
+        <p class="muted">Exemples : amiodarone, AVC, annuaire, douleur, protocole, service.</p>
       </div>
     `;
   }
@@ -290,7 +293,7 @@ export async function renderGlobalSearchView(container, options = {}) {
         <div class="info-card">
           <p class="section-kicker">Recherche globale</p>
           <strong>${query ? `${results.length} resultat(s)` : "Recherche sur tout le contenu"}</strong>
-          <p class="muted">La recherche parcourt les categories, documents, annuaires et codes.</p>
+          <p class="muted">La recherche parcourt les categories, documents, services, annuaires et codes.</p>
         </div>
 
         <section class="search-results-panel">

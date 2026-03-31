@@ -16,6 +16,7 @@ import {
 const CATEGORY_TYPE_OPTIONS = [
   { value: "medicament", label: "Medicaments" },
   { value: "protocole", label: "Protocoles et procedures" },
+  { value: "service", label: "Services" },
   { value: "annuaire", label: "Annuaires" },
   { value: "code", label: "Codes" }
 ];
@@ -246,6 +247,7 @@ function inferTypeFromName(name) {
   const normalizedName = normalizeText(name);
 
   if (normalizedName === "medicaments" || normalizedName === "medicament") return "medicament";
+  if (normalizedName === "services" || normalizedName === "service") return "service";
   if (normalizedName === "annuaires" || normalizedName === "annuaire") return "annuaire";
   if (normalizedName === "codes" || normalizedName === "code") return "code";
   if (normalizedName === "protocoles et procedures" || normalizedName === "protocoles" || normalizedName === "protocoles/procedures") {

@@ -51,9 +51,11 @@ const NAV_ITEMS = [
     emptyMessage: "Aucune categorie protocole disponible."
   },
   {
-    id: "favorites",
-    label: "Favoris",
-    kind: "favorites"
+    id: "services",
+    label: "Services",
+    kind: "generic",
+    categoryType: "service",
+    emptyMessage: "Aucune categorie service disponible."
   },
   {
     id: "emergency-meds",
@@ -86,10 +88,15 @@ const VIEW_CONFIG = {
     id: "search",
     label: "Recherche",
     kind: "search"
+  },
+  favorites: {
+    id: "favorites",
+    label: "Favoris",
+    kind: "favorites"
   }
 };
 
-const navigationMap = new Map([...NAV_ITEMS, VIEW_CONFIG.admin, VIEW_CONFIG.search].map((item) => [item.id, item]));
+const navigationMap = new Map([...NAV_ITEMS, VIEW_CONFIG.admin, VIEW_CONFIG.search, VIEW_CONFIG.favorites].map((item) => [item.id, item]));
 
 const AUTH_COPY = {
   login: {
@@ -134,6 +141,7 @@ const elements = {
   adminBtn: document.getElementById("adminBtn"),
   globalSearchForm: document.getElementById("globalSearchForm"),
   globalSearchInput: document.getElementById("globalSearchInput"),
+  favoritesShortcutBtn: document.getElementById("favoritesShortcutBtn"),
   waitingMessage: document.getElementById("waitingMessage"),
   mainNav: document.getElementById("mainNav"),
   mainContent: document.getElementById("mainContent"),
@@ -143,8 +151,8 @@ const elements = {
 const MOBILE_NAV_ICONS = {
   medications: "💊",
   protocols: "📋",
-  favorites: "★",
   "emergency-meds": "⚡",
+  services: "🏥",
   directories: "☎",
   codes: "#"
 };
@@ -266,17 +274,16 @@ function updateUserStatus() {
 }
 
 function getNavLabel(item) {
-  if (item.id === "favorites") {
-    const baseLabel = `${item.label} (${getFavoritesCount()})`;
+  return item.label;
+}
 
-    if (state.currentView === "favorites" && state.viewContext?.categoryType) {
-      return `${baseLabel} - Global`;
-    }
-
-    return baseLabel;
+function updateFavoritesShortcut() {
+  if (!elements.favoritesShortcutBtn) {
+    return;
   }
 
-  return item.label;
+  elements.favoritesShortcutBtn.textContent = `Favoris (${getFavoritesCount()})`;
+  elements.favoritesShortcutBtn.classList.toggle("is-active", state.currentView === "favorites");
 }
 
 function shouldFocusContentOnMobile() {
@@ -355,6 +362,8 @@ function renderNavigation() {
       navigateTo(button.dataset.mobileView, {}, { focusContentOnMobile: true });
     });
   });
+
+  updateFavoritesShortcut();
 }
 
 async function renderEmergencyView() {
@@ -421,6 +430,7 @@ function renderAccessState() {
   elements.logoutBtn.classList.toggle("hidden", !isConnected);
   elements.adminBtn.classList.toggle("hidden", !isConnected || !isApproved || !isAdmin);
   elements.globalSearchForm.classList.toggle("hidden", !isConnected || !isApproved);
+  elements.favoritesShortcutBtn?.classList.toggle("hidden", !isConnected || !isApproved);
   elements.authPanel.classList.toggle("hidden", isConnected);
   elements.waitingPanel.classList.toggle("hidden", !isConnected || isApproved);
   elements.appPanel.classList.toggle("hidden", !isConnected || !isApproved);
@@ -630,6 +640,9 @@ function registerEvents() {
 
     event.preventDefault();
     performGlobalSearch();
+  });
+  elements.favoritesShortcutBtn?.addEventListener("click", () => {
+    navigateTo("favorites", {}, { focusContentOnMobile: true });
   });
 
   subscribeToAuthChanges(async (event, session) => {
