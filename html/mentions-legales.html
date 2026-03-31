@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0f766e">
-  <title>Politique de confidentialité | ASguIDE</title>
+  <title>Mentions légales | ASguIDE</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./css/style.css">
+  <link rel="stylesheet" href="../css/style.css">
   <style>
     .legal-shell {
       display: grid;
@@ -153,6 +153,48 @@
         padding: 20px;
       }
     }
+
+    .mobile-shortcuts {
+      display: none;
+    }
+
+    @media (max-width: 960px) {
+      .mobile-shortcuts {
+        position: fixed;
+        left: 14px;
+        right: 14px;
+        bottom: 0;
+        z-index: 60;
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 8px;
+        padding: 10px 10px max(10px, env(safe-area-inset-bottom));
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 22px;
+        box-shadow: 0 20px 44px rgba(15, 23, 42, 0.16);
+        backdrop-filter: blur(16px);
+      }
+
+      .mobile-shortcuts-link {
+        display: grid;
+        place-items: center;
+        min-height: 52px;
+        padding: 8px 4px;
+        color: var(--text-muted);
+        border-radius: 16px;
+        font-size: 0.7rem;
+        font-weight: 800;
+        line-height: 1.15;
+        text-align: center;
+        text-decoration: none;
+      }
+
+      .mobile-shortcuts-link.is-active {
+        color: var(--primary);
+        background: rgba(204, 251, 241, 0.72);
+      }
+    }
   </style>
 </head>
 <body>
@@ -165,163 +207,148 @@
         <h1>ASguIDE</h1>
       </div>
 
-      <a class="button button-secondary" href="./index.html">Retour à l'accueil</a>
+      <a class="button button-secondary" href="../index.html">Retour à l'accueil</a>
     </header>
 
     <main class="legal-shell">
       <section class="legal-hero">
-        <p class="section-kicker">Données personnelles</p>
-        <h2>Politique de confidentialité</h2>
+        <p class="section-kicker">Informations légales</p>
+        <h2>Mentions légales</h2>
         <p>
-          Cette page explique comment ASguIDE collecte, utilise, conserve et protège les données
-          personnelles de ses utilisateurs dans le cadre du fonctionnement du service.
+          Cette page présente les informations légales relatives au site ASguIDE, à son hébergement,
+          à l'accès au service et à l'usage des contenus mis à disposition.
         </p>
         <div class="legal-actions">
-          <a class="button button-primary" href="mailto:lombardamien@gmail.com">Contacter le responsable</a>
-          <a class="button button-secondary" href="./index.html">Accéder au site</a>
+          <a class="button button-primary" href="mailto:lombardamien@gmail.com">Contacter l'éditeur</a>
+          <a class="button button-secondary" href="../index.html">Accéder au site</a>
         </div>
       </section>
 
-      <section class="legal-grid" aria-label="Contenu de la politique de confidentialité">
+      <section class="legal-grid" aria-label="Contenu des mentions légales">
         <article class="legal-card">
           <div class="legal-card-header">
             <p class="section-kicker">1</p>
-            <h3>Introduction</h3>
+            <h3>Éditeur du site</h3>
           </div>
           <div class="legal-stack">
-            <p>La présente politique de confidentialité a pour objectif d’informer les utilisateurs du site ASguIDE sur la manière dont leurs données personnelles sont collectées, utilisées et protégées.</p>
+            <p>Le présent site, ASguIDE, est édité par :</p>
+            <p><strong>Damien Lombard</strong></p>
+            <p>Email : <a class="legal-link" href="mailto:lombardamien@gmail.com">lombardamien@gmail.com</a></p>
+            <p>Statut : particulier</p>
           </div>
         </article>
 
         <article class="legal-card">
           <div class="legal-card-header">
             <p class="section-kicker">2</p>
-            <h3>Responsable du traitement</h3>
+            <h3>Directeur de la publication</h3>
           </div>
           <div class="legal-stack">
-            <p>Le responsable du traitement des données est :</p>
+            <p>Le directeur de la publication est :</p>
             <p><strong>Damien Lombard</strong></p>
-            <p>Email : <a class="legal-link" href="mailto:lombardamien@gmail.com">lombardamien@gmail.com</a></p>
           </div>
         </article>
 
         <article class="legal-card">
           <div class="legal-card-header">
             <p class="section-kicker">3</p>
-            <h3>Données collectées</h3>
+            <h3>Hébergement</h3>
           </div>
           <div class="legal-stack">
-            <p>Les données suivantes peuvent être collectées lors de l’utilisation du site :</p>
-            <ul class="legal-list">
-              <li>Adresse email</li>
-              <li>Nom et prénom</li>
-            </ul>
-            <p>Ces données sont fournies directement par l’utilisateur lors de la création de son compte.</p>
+            <p>Le site est hébergé par :</p>
+            <p><strong>GitHub, Inc.</strong></p>
+            <p>Site web : <a class="legal-link" href="https://github.com" target="_blank" rel="noreferrer">https://github.com</a></p>
+            <p>L’application utilise également un service de base de données fourni par :</p>
+            <p><strong>Supabase Inc.</strong></p>
+            <p>Site web : <a class="legal-link" href="https://supabase.com" target="_blank" rel="noreferrer">https://supabase.com</a></p>
+            <p class="muted">Les données peuvent être hébergées sur des serveurs situés en dehors de l’Union Européenne.</p>
           </div>
         </article>
 
         <article class="legal-card">
           <div class="legal-card-header">
             <p class="section-kicker">4</p>
-            <h3>Finalité de la collecte</h3>
+            <h3>Accès au site</h3>
           </div>
           <div class="legal-stack">
-            <p>Les données sont collectées pour les finalités suivantes :</p>
-            <ul class="legal-list">
-              <li>Création et gestion des comptes utilisateurs</li>
-              <li>Accès sécurisé à l’application</li>
-              <li>Gestion des autorisations (validation des comptes)</li>
-            </ul>
+            <p>Le site ASguIDE est accessible publiquement pour la page de connexion.</p>
+            <p>L’accès aux contenus et fonctionnalités est réservé aux utilisateurs disposant d’un compte validé par un administrateur.</p>
           </div>
         </article>
 
         <article class="legal-card">
           <div class="legal-card-header">
             <p class="section-kicker">5</p>
-            <h3>Base légale</h3>
+            <h3>Collecte de données</h3>
           </div>
           <div class="legal-stack">
-            <p>Le traitement des données repose sur :</p>
+            <p>Le site peut collecter les données suivantes lors de la création d’un compte utilisateur :</p>
             <ul class="legal-list">
-              <li>L’exécution d’un service (création et gestion de compte)</li>
-              <li>L’intérêt légitime de l’éditeur (sécurisation de l’accès à l’application)</li>
+              <li>Adresse email</li>
+              <li>Nom et prénom</li>
             </ul>
+            <p>Ces données sont nécessaires au fonctionnement du service.</p>
           </div>
         </article>
 
         <article class="legal-card">
           <div class="legal-card-header">
             <p class="section-kicker">6</p>
-            <h3>Hébergement et transfert des données</h3>
+            <h3>Usage du site et avertissement médical</h3>
           </div>
           <div class="legal-stack">
-            <p>Les données sont hébergées via :</p>
-            <ul class="legal-list">
-              <li>GitHub, Inc. (hébergement du site)</li>
-              <li>Supabase Inc. (base de données et authentification)</li>
-            </ul>
-            <p>Ces services peuvent impliquer un transfert de données en dehors de l’Union Européenne.</p>
+            <p>ASguIDE est un outil d’aide à l’organisation et à la consultation de ressources professionnelles.</p>
+            <p>Les informations présentes sur le site sont fournies à titre informatif et ne remplacent en aucun cas le jugement clinique d’un professionnel de santé.</p>
+            <p>L’utilisateur reste seul responsable de l’interprétation et de l’utilisation des informations dans sa pratique.</p>
           </div>
         </article>
 
         <article class="legal-card is-full">
           <div class="legal-card-header">
             <p class="section-kicker">7</p>
-            <h3>Durée de conservation</h3>
+            <h3>Responsabilité</h3>
           </div>
           <div class="legal-stack">
-            <p>Les données sont conservées pendant toute la durée d’utilisation du compte.</p>
-            <p>Les données sont supprimées dès la suppression du compte. Toutefois, certaines données peuvent être conservées temporairement dans des systèmes de sauvegarde ou journaux techniques, pour une durée strictement limitée.</p>
+            <p>L’éditeur met en œuvre les moyens raisonnables pour assurer la fiabilité des informations et le bon fonctionnement du site.</p>
+            <p>Toutefois, l’éditeur ne saurait être tenu responsable :</p>
+            <ul class="legal-list">
+              <li>des erreurs ou omissions dans les contenus</li>
+              <li>d’une mauvaise utilisation des informations par les utilisateurs</li>
+              <li>d’une interruption ou d’un dysfonctionnement du service</li>
+            </ul>
           </div>
         </article>
 
         <article class="legal-card">
           <div class="legal-card-header">
             <p class="section-kicker">8</p>
-            <h3>Sécurité</h3>
+            <h3>Sécurité et accès</h3>
           </div>
           <div class="legal-stack">
-            <p>L’éditeur met en œuvre des mesures techniques et organisationnelles pour protéger les données personnelles (authentification sécurisée, accès restreint).</p>
+            <p>L’accès au site est sécurisé par authentification.</p>
+            <p>Chaque utilisateur est responsable de la confidentialité de ses identifiants de connexion.</p>
           </div>
         </article>
 
         <article class="legal-card">
           <div class="legal-card-header">
             <p class="section-kicker">9</p>
-            <h3>Droits des utilisateurs</h3>
+            <h3>Propriété intellectuelle</h3>
           </div>
           <div class="legal-stack">
-            <p>Conformément au RGPD, les utilisateurs disposent des droits suivants :</p>
-            <ul class="legal-list">
-              <li>Droit d’accès</li>
-              <li>Droit de rectification</li>
-              <li>Droit de suppression</li>
-              <li>Droit d’opposition</li>
-            </ul>
-            <p>Pour exercer ces droits, l’utilisateur peut contacter :</p>
-            <p><a class="legal-link" href="mailto:lombardamien@gmail.com">lombardamien@gmail.com</a></p>
+            <p>L’ensemble des contenus présents sur le site (textes, structure, organisation) est la propriété de l’éditeur sauf mention contraire.</p>
+            <p>Toute reproduction, distribution ou utilisation sans autorisation est interdite.</p>
           </div>
         </article>
 
-        <article class="legal-card">
+        <article class="legal-card is-full">
           <div class="legal-card-header">
             <p class="section-kicker">10</p>
-            <h3>Cookies</h3>
+            <h3>Contact</h3>
           </div>
           <div class="legal-stack">
-            <p>Le site utilise uniquement des cookies techniques nécessaires au bon fonctionnement de l’authentification.</p>
-            <p>Aucun cookie publicitaire ou de suivi n’est utilisé.</p>
-          </div>
-        </article>
-
-        <article class="legal-card">
-          <div class="legal-card-header">
-            <p class="section-kicker">11</p>
-            <h3>Modification de la politique</h3>
-          </div>
-          <div class="legal-stack">
-            <p>La présente politique de confidentialité peut être modifiée à tout moment.</p>
-            <p>Les utilisateurs seront informés en cas de modification importante.</p>
+            <p>Pour toute question, vous pouvez contacter l’éditeur à l’adresse suivante :</p>
+            <p><a class="legal-link" href="mailto:lombardamien@gmail.com">lombardamien@gmail.com</a></p>
           </div>
         </article>
       </section>
@@ -335,5 +362,12 @@
       </div>
     </footer>
   </div>
+  <nav class="mobile-shortcuts" aria-label="Raccourcis mobiles">
+    <a class="mobile-shortcuts-link" href="../index.html">Accueil</a>
+    <a class="mobile-shortcuts-link" href="./memo-medicaments.html">Medicaments</a>
+    <a class="mobile-shortcuts-link" href="./memo-medicaments-urgences.html">Urgences</a>
+    <a class="mobile-shortcuts-link" href="./memo-antibiotiques.html">Antibiotiques</a>
+    <a class="mobile-shortcuts-link is-active" href="./mentions-legales.html">Legal</a>
+  </nav>
 </body>
 </html>
