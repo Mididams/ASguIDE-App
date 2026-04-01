@@ -12,15 +12,24 @@
     :root {
       --bg: #eff6f6;
       --surface: rgba(255, 255, 255, 0.94);
+      --surface-strong: #ffffff;
+      --surface-muted: #f4f8f8;
       --border: rgba(15, 23, 42, 0.08);
       --text: #12232f;
       --text-muted: #58707d;
       --primary: #0f766e;
+      --primary-soft: #ccfbf1;
       --shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
       --radius-xl: 24px;
-      --max-width: 1180px;
+      --radius-lg: 18px;
+      --radius-md: 14px;
+      --max-width: 1280px;
     }
-    * { box-sizing: border-box; }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
       font-family: "Manrope", sans-serif;
@@ -30,6 +39,7 @@
         radial-gradient(circle at right, rgba(20, 184, 166, 0.12), transparent 24%),
         linear-gradient(180deg, #f8fcfb 0%, var(--bg) 100%);
     }
+
     .app-background {
       position: fixed;
       inset: 0;
@@ -40,6 +50,7 @@
       background-size: auto, 32px 32px, 32px 32px;
       pointer-events: none;
     }
+
     .page-shell {
       position: relative;
       z-index: 1;
@@ -49,6 +60,7 @@
       display: grid;
       gap: 20px;
     }
+
     .panel {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -56,12 +68,38 @@
       box-shadow: var(--shadow);
       backdrop-filter: blur(14px);
     }
-    .placeholder {
-      padding: 24px;
+
+    .hero {
+      padding: 26px;
       display: grid;
-      gap: 12px;
-      text-align: center;
+      gap: 16px;
+      background:
+        linear-gradient(180deg, rgba(240, 253, 250, 0.92) 0%, rgba(255, 255, 255, 0.98) 100%);
     }
+
+    .hero-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .back-link,
+    .card-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 0 18px;
+      color: var(--primary);
+      background: rgba(204, 251, 241, 0.76);
+      border: 1px solid rgba(15, 118, 110, 0.18);
+      border-radius: 999px;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
     .eyebrow {
       margin: 0;
       color: var(--primary);
@@ -70,23 +108,88 @@
       letter-spacing: 0.08em;
       text-transform: uppercase;
     }
-    h1, p { margin: 0; }
-    p { color: var(--text-muted); }
-    .back-link {
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 4vw, 3rem);
+      line-height: 1.05;
+    }
+
+    .hero-copy {
+      display: grid;
+      gap: 10px;
+      max-width: 860px;
+    }
+
+    .hero-copy p {
+      color: var(--text-muted);
+      line-height: 1.65;
+    }
+
+    .tag-line {
       display: inline-flex;
       align-items: center;
-      justify-content: center;
-      min-height: 42px;
+      gap: 8px;
       width: fit-content;
-      margin: 8px auto 0;
-      padding: 0 16px;
-      color: var(--primary);
-      background: rgba(204, 251, 241, 0.7);
-      border: 1px solid rgba(15, 118, 110, 0.18);
+      padding: 8px 12px;
       border-radius: 999px;
+      font-size: 0.84rem;
       font-weight: 800;
-      text-decoration: none;
+      background: var(--surface-muted);
     }
+
+    .hub {
+      padding: 26px;
+      display: grid;
+      gap: 22px;
+    }
+
+    .hub-intro {
+      padding: 24px;
+      text-align: center;
+      border: 1px solid rgba(15, 118, 110, 0.12);
+      border-radius: var(--radius-xl);
+      background:
+        linear-gradient(180deg, rgba(255, 248, 248, 0.82) 0%, rgba(255, 255, 255, 0.98) 100%);
+    }
+
+    .hub-intro .eyebrow {
+      margin-bottom: 10px;
+    }
+
+    .hub-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 20px;
+    }
+
+    .hub-card {
+      padding: 24px;
+      background:
+        linear-gradient(180deg, rgba(240, 253, 250, 0.82) 0%, rgba(255, 255, 255, 0.98) 100%);
+      border: 1px solid rgba(15, 118, 110, 0.14);
+      border-radius: var(--radius-xl);
+      display: grid;
+      align-content: start;
+      gap: 16px;
+    }
+
+    .hub-card h3 {
+      font-size: 1.05rem;
+      line-height: 1.35;
+    }
+
+    .hub-card p {
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
     .site-footer {
       display: flex;
       align-items: center;
@@ -94,6 +197,7 @@
       gap: 16px;
       padding: 16px 24px;
     }
+
     .site-footer-links {
       display: flex;
       align-items: center;
@@ -101,30 +205,45 @@
       gap: 18px;
       flex-wrap: wrap;
     }
-    .site-footer-links::before { content: ""; }
+
+    .site-footer-links::before {
+      content: "";
+    }
+
     .site-footer-link {
       color: var(--primary);
       font-weight: 700;
       text-decoration: none;
     }
+
     .site-footer-link + .site-footer-link::before {
       content: "-";
       margin-right: 18px;
       color: var(--text-muted);
       font-weight: 600;
     }
+
     .site-footer-link:hover,
     .site-footer-link:focus-visible {
       text-decoration: underline;
       text-underline-offset: 3px;
     }
+
     .mobile-nav {
       display: none;
     }
+
+    @media (max-width: 1024px) {
+      .hub-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     @media (max-width: 960px) {
       .page-shell {
         padding-bottom: calc(116px + env(safe-area-inset-bottom));
       }
+
       .mobile-nav {
         position: fixed;
         left: 14px;
@@ -141,6 +260,7 @@
         box-shadow: 0 20px 44px rgba(15, 23, 42, 0.16);
         backdrop-filter: blur(16px);
       }
+
       .mobile-nav-button {
         display: grid;
         justify-items: center;
@@ -152,14 +272,17 @@
         border-radius: 16px;
         text-decoration: none;
       }
+
       .mobile-nav-button.is-active {
         color: #115e59;
         background: rgba(204, 251, 241, 0.72);
       }
+
       .mobile-nav-icon {
         font-size: 1.1rem;
         line-height: 1;
       }
+
       .mobile-nav-label {
         max-width: 100%;
         overflow: hidden;
@@ -171,16 +294,65 @@
         white-space: nowrap;
       }
     }
+
+    @media (max-width: 720px) {
+      .page-shell {
+        padding: 16px;
+        padding-bottom: calc(116px + env(safe-area-inset-bottom));
+      }
+
+      .hero,
+      .hub {
+        padding: 18px;
+      }
+
+      .hub-intro,
+      .hub-card {
+        padding: 20px;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="app-background"></div>
   <main class="page-shell">
-    <section class="panel placeholder">
-      <p class="eyebrow">Mémo</p>
-      <h1>Fiches complètes SMIT</h1>
-      <p>Cette page est prête à être remplie.</p>
-      <a class="back-link" href="../index.html">Retour à l'application</a>
+    <header class="panel hero">
+      <div class="hero-top">
+        <a class="back-link" href="../index.html">Retour à l'application</a>
+        <span class="tag-line">SMIT</span>
+      </div>
+      <div class="hero-copy">
+        <h1>Références complètes SMIT</h1>
+    </header>
+
+    <section class="panel hub">
+      <div class="hub-intro">
+        <p class="eyebrow">SMIT</p>
+        <h2>Mémos et fiches prioritaires</h2>
+      </div>
+
+      <div class="hub-grid">
+        <article class="hub-card">
+          <p class="eyebrow">SMIT</p>
+          <h3>Dilution et utilisation des antibiotiques en perfusions</h3>
+          <a class="card-link" target="_blank" href="https://wconzbxoisgvoodccact.supabase.co/storage/v1/object/sign/documents/Dilution%20et%20utilisation%20des%20antibiotiques%20en%20perfusions%20intermittentes-1.pdf?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9mNWFkNjI1YS1jNjM0LTQ1NDMtYWU3YS1iMGZkZGFiMDJjYWEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJkb2N1bWVudHMvRGlsdXRpb24gZXQgdXRpbGlzYXRpb24gZGVzIGFudGliaW90aXF1ZXMgZW4gcGVyZnVzaW9ucyBpbnRlcm1pdHRlbnRlcy0xLnBkZiIsImlhdCI6MTc3NTAwMTI4MiwiZXhwIjoxODY5NjA5MjgyfQ.0YzCoaEHHpoESrlWZrULEFPyA8N-spvfssZGwcmEK4k" aria-disabled="true">Perfusions classiques</a>
+          <p>Document de référence pour les perfusions classiques d'antibiotiques.</p>
+        </article>
+
+        <article class="hub-card">
+          <p class="eyebrow">SMIT</p>
+          <h3>Dilution et utilisation des antibiotiques en perfusions prolongées</h3>
+          <a class="card-link" target="_blank" href="https://wconzbxoisgvoodccact.supabase.co/storage/v1/object/sign/documents/Dilution%20et%20utilisation%20des%20antibiotiques%20en%20perfusions%20prolongees-1.pdf?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9mNWFkNjI1YS1jNjM0LTQ1NDMtYWU3YS1iMGZkZGFiMDJjYWEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJkb2N1bWVudHMvRGlsdXRpb24gZXQgdXRpbGlzYXRpb24gZGVzIGFudGliaW90aXF1ZXMgZW4gcGVyZnVzaW9ucyBwcm9sb25nZWVzLTEucGRmIiwiaWF0IjoxNzc1MDAxNjIyLCJleHAiOjE4Njk2MDk2MjJ9.fCyyHQx-Goko8UhN1rtcDjIpyOLItWCM5M6fmrimUtI" aria-disabled="true">Perfusion PSE ou Pompe volumétrique</a>
+          <p>Accès dédié aux protocoles de perfusion prolongée, PSE et pompe volumétrique.</p>
+        </article>
+
+        <article class="hub-card">
+          <p class="eyebrow">SMIT</p>
+          <h3>Posologies adultes standards et fortes posologies</h3>
+          <a class="card-link" target="_blank" href="https://wconzbxoisgvoodccact.supabase.co/storage/v1/object/sign/documents/Posologies%20ADULTES%20standards%20et%20FORTES%20POSOLOGIES%20-1.pdf?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9mNWFkNjI1YS1jNjM0LTQ1NDMtYWU3YS1iMGZkZGFiMDJjYWEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJkb2N1bWVudHMvUG9zb2xvZ2llcyBBRFVMVEVTIHN0YW5kYXJkcyBldCBGT1JURVMgUE9TT0xPR0lFUyAtMS5wZGYiLCJpYXQiOjE3NzUwMDE2ODYsImV4cCI6MTg2OTYwOTY4Nn0.AC0_gnFPWX2ZiXMAH1gKI7ZyOW5i5-5oi69HK5YE4Ks" aria-disabled="true">Posologie</a>
+          <p>Repères de posologies adultes usuelles et fortes posologies pour les principales situations.</p>
+        </article>
+      </div>
     </section>
   </main>
   <footer class="page-shell">

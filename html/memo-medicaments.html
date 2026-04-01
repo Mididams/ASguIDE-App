@@ -12,15 +12,32 @@
     :root {
       --bg: #eff6f6;
       --surface: rgba(255, 255, 255, 0.94);
+      --surface-strong: #ffffff;
+      --surface-muted: #f4f8f8;
       --border: rgba(15, 23, 42, 0.08);
       --text: #12232f;
       --text-muted: #58707d;
       --primary: #0f766e;
+      --primary-soft: #ccfbf1;
+      --danger: #c2410c;
+      --warning: #92400e;
+      --info: #2563eb;
+      --success: #16a34a;
       --shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
       --radius-xl: 24px;
+      --radius-lg: 18px;
+      --radius-md: 14px;
       --max-width: 1180px;
     }
-    * { box-sizing: border-box; }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
     body {
       margin: 0;
       font-family: "Manrope", sans-serif;
@@ -30,6 +47,11 @@
         radial-gradient(circle at right, rgba(20, 184, 166, 0.12), transparent 24%),
         linear-gradient(180deg, #f8fcfb 0%, var(--bg) 100%);
     }
+
+    a {
+      color: inherit;
+    }
+
     .app-background {
       position: fixed;
       inset: 0;
@@ -40,6 +62,7 @@
       background-size: auto, 32px 32px, 32px 32px;
       pointer-events: none;
     }
+
     .page-shell {
       position: relative;
       z-index: 1;
@@ -49,6 +72,7 @@
       display: grid;
       gap: 20px;
     }
+
     .panel {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -56,29 +80,29 @@
       box-shadow: var(--shadow);
       backdrop-filter: blur(14px);
     }
-    .placeholder {
+
+    .hero {
       padding: 24px;
       display: grid;
-      gap: 12px;
-      text-align: center;
+      gap: 16px;
+      background:
+        linear-gradient(180deg, rgba(240, 253, 250, 0.92) 0%, rgba(255, 255, 255, 0.98) 100%);
     }
-    .eyebrow {
-      margin: 0;
-      color: var(--primary);
-      font-size: 0.82rem;
-      font-weight: 800;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+
+    .hero-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
     }
-    h1, p { margin: 0; }
-    p { color: var(--text-muted); }
-    .back-link {
+
+    .back-link,
+    .anchor-chip {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       min-height: 42px;
-      width: fit-content;
-      margin: 8px auto 0;
       padding: 0 16px;
       color: var(--primary);
       background: rgba(204, 251, 241, 0.7);
@@ -87,13 +111,207 @@
       font-weight: 800;
       text-decoration: none;
     }
+
+    .eyebrow {
+      margin: 0 0 6px;
+      color: var(--primary);
+      font-size: 0.82rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 4vw, 3rem);
+      line-height: 1.05;
+    }
+
+    .hero-copy {
+      display: grid;
+      gap: 10px;
+      max-width: 840px;
+    }
+
+    .hero-copy p {
+      color: var(--text-muted);
+      line-height: 1.65;
+    }
+
+    .tag-line {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 0.84rem;
+      font-weight: 800;
+      background: var(--surface-muted);
+    }
+
+    .legend {
+      display: grid;
+      gap: 14px;
+      padding: 20px 24px;
+    }
+
+    .legend-grid,
+    .anchors {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+
+    .swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      flex: 0 0 auto;
+    }
+
+    .swatch.info {
+      background: var(--info);
+    }
+
+    .swatch.volume {
+      background: var(--success);
+    }
+
+    .swatch.duration {
+      background: var(--warning);
+    }
+
+    .swatch.limit {
+      background: #dc2626;
+    }
+
+    .section-block {
+      padding: 24px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .section-header {
+      display: grid;
+      gap: 8px;
+    }
+
+    .section-header p {
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .variant-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .variant-card {
+      padding: 18px;
+      background: var(--surface-strong);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      display: grid;
+      align-content: start;
+      gap: 14px;
+    }
+
+    .variant-card h3 {
+      margin: -2px -2px 2px;
+      padding: 12px 14px;
+      font-size: 1.2rem;
+      line-height: 1.2;
+      color: var(--primary);
+      background: linear-gradient(135deg, rgba(204, 251, 241, 0.78) 0%, rgba(255, 255, 255, 0.98) 100%);
+      border: 1px solid rgba(15, 118, 110, 0.12);
+      border-radius: var(--radius-md);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    }
+
+    .variant-card.is-highlight {
+      background:
+        linear-gradient(180deg, rgba(254, 242, 242, 0.92) 0%, rgba(255, 255, 255, 1) 100%);
+      border-color: rgba(220, 38, 38, 0.14);
+    }
+
+    .variant-body {
+      display: grid;
+      gap: 8px;
+      color: var(--text-muted);
+      line-height: 1.65;
+    }
+
+    .variant-body strong {
+      color: var(--text);
+    }
+
+    .c-info {
+      color: var(--info);
+    }
+
+    .c-volume {
+      color: var(--success);
+    }
+
+    .c-duration {
+      color: var(--warning);
+    }
+
+    .c-limit {
+      color: #dc2626;
+    }
+
+    .math {
+      padding: 14px 16px;
+      background: rgba(244, 248, 248, 0.9);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      color: var(--text);
+      font-weight: 700;
+      line-height: 1.65;
+    }
+
+    .muted {
+      color: var(--text-muted);
+    }
+
+    .footer-actions {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 0 0 12px;
+    }
+
     .site-footer {
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 16px;
+      margin-top: 4px;
       padding: 16px 24px;
     }
+
     .site-footer-links {
       display: flex;
       align-items: center;
@@ -101,30 +319,52 @@
       gap: 18px;
       flex-wrap: wrap;
     }
-    .site-footer-links::before { content: ""; }
+
+    .site-footer-links::before {
+      content: "";
+    }
+
     .site-footer-link {
       color: var(--primary);
       font-weight: 700;
       text-decoration: none;
     }
+
     .site-footer-link + .site-footer-link::before {
       content: "-";
       margin-right: 18px;
       color: var(--text-muted);
       font-weight: 600;
     }
+
     .site-footer-link:hover,
     .site-footer-link:focus-visible {
       text-decoration: underline;
       text-underline-offset: 3px;
     }
+
     .mobile-nav {
       display: none;
     }
-    @media (max-width: 960px) {
+
+    @media (max-width: 720px) {
       .page-shell {
+        padding: 16px;
         padding-bottom: calc(116px + env(safe-area-inset-bottom));
       }
+
+      .hero,
+      .legend,
+      .section-block {
+        padding: 18px;
+      }
+
+      .variant-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 960px) {
       .mobile-nav {
         position: fixed;
         left: 14px;
@@ -141,6 +381,7 @@
         box-shadow: 0 20px 44px rgba(15, 23, 42, 0.16);
         backdrop-filter: blur(16px);
       }
+
       .mobile-nav-button {
         display: grid;
         justify-items: center;
@@ -152,14 +393,17 @@
         border-radius: 16px;
         text-decoration: none;
       }
+
       .mobile-nav-button.is-active {
         color: #115e59;
         background: rgba(204, 251, 241, 0.72);
       }
+
       .mobile-nav-icon {
         font-size: 1.1rem;
         line-height: 1;
       }
+
       .mobile-nav-label {
         max-width: 100%;
         overflow: hidden;
@@ -175,13 +419,83 @@
 </head>
 <body>
   <div class="app-background"></div>
-  <main class="page-shell">
-    <section class="panel placeholder">
-      <p class="eyebrow">Mémo</p>
-      <h1>Fiches mémos médicaments</h1>
-      <p>Cette page est prête à être remplie.</p>
-      <a class="back-link" href="../index.html">Retour à l'application</a>
+  <main class="page-shell" id="top">
+    <header class="panel hero">
+      <div class="hero-top">
+        <a class="back-link" href="../index.html">Retour à l'application</a>
+        <span class="tag-line">Mémo médicaments</span>
+      </div>
+      <div class="hero-copy">
+        <h1>Fiches mémos médicaments</h1>
+      </div>
+      <nav class="anchors" aria-label="Navigation rapide">
+        <a class="anchor-chip" href="#phocytan">Phocytan</a>
+        <a class="anchor-chip" href="#calcul-phocytan">Calcul VVP 500 ml</a>
+      </nav>
+    </header>
+
+    <section class="panel legend">
+      <div class="section-header">
+        <p class="eyebrow">Légende</p>
+      </div>
+      <div class="legend-grid">
+        <span class="legend-item"><span class="swatch info"></span>Voie / soluté</span>
+        <span class="legend-item"><span class="swatch volume"></span>Volume minimal</span>
+        <span class="legend-item"><span class="swatch duration"></span>Durée</span>
+        <span class="legend-item"><span class="swatch limit"></span>Limites de concentration</span>
+      </div>
     </section>
+
+    <section class="panel section-block">
+      <div class="section-header">
+        <p class="eyebrow">Molécule</p>
+      </div>
+      <div class="variant-grid">
+        <article class="variant-card is-highlight" id="phocytan">
+          <h3>Phocytan</h3>
+          <div class="variant-body">
+            <p class="c-info"><strong>Voie :</strong> sur voie dédiée</p>
+            <p class="c-info"><strong>Soluté :</strong> NaCl ou G5 % ou Polyo</p>
+            <p class="c-volume"><strong>Quantité soluté minimum :</strong> 500 ml</p>
+            <p class="c-duration"><strong>Durée :</strong> 6 h minimum</p>
+            <p class="c-limit"><strong>Concentration max VVP :</strong> 0.05 mmol/ml</p>
+            <p class="c-limit"><strong>Concentration max VVC :</strong> 0.12 mmol/ml</p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel section-block" id="calcul-phocytan">
+      <div class="section-header">
+        <p class="eyebrow">Calcul</p>
+        <h2>Dose maximum de Phocytan pour 500 ml de NaCl en VVP</h2>
+        <p>Reprise du calcul présent dans ton document source, reformulé pour une lecture plus rapide.</p>
+      </div>
+      <div class="math">
+        C1 × V1 = C2 × V2
+        <br><br>
+        C1 = concentration initiale de l'ampoule = 0.66 mmol/ml
+        <br>
+        V1 = volume de Phocytan à prélever = inconnu
+        <br>
+        C2 = concentration finale = 0.05 mmol/ml
+        <br>
+        V2 = volume final = 500 ml
+        <br><br>
+        Donc :
+        <br>
+        V1 = (C2 × V2) / C1
+        <br>
+        V1 = (0.05 × 500) / 0.66
+        <br>
+        V1 = 37.8 ml de Phocytan à prélever
+      </div>
+    </section>
+
+    <div class="footer-actions">
+      <a class="back-link" href="#top">Retour en haut</a>
+      <a class="back-link" href="../index.html">Retour à l'application</a>
+    </div>
   </main>
   <footer class="page-shell">
     <div class="panel site-footer" aria-label="Liens légaux">
