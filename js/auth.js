@@ -1,5 +1,9 @@
 import { supabaseClient } from "./config.js";
 
+function getAuthRedirectUrl() {
+  return `${window.location.origin}${window.location.pathname}`;
+}
+
 export async function signIn(email, password) {
   return supabaseClient.auth.signInWithPassword({ email, password });
 }
@@ -9,6 +13,7 @@ export async function signUp({ firstName, lastName, email, password }) {
     email,
     password,
     options: {
+      emailRedirectTo: getAuthRedirectUrl(),
       data: {
         first_name: firstName,
         last_name: lastName,
