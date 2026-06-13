@@ -26,12 +26,35 @@ const ADMIN_CONTENT_SHORTCUTS = [
   { value: "emergency", label: "Medocs d'urgence", disabled: true }
 ];
 
+const RESOURCE_TYPE_OPTIONS = ["pdf", "word", "excel", "image", "link", "html"];
+
 function normalizeText(value) {
   return String(value ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+}
+
+function isUrlBackedResourceType(type) {
+  return type === "link" || type === "html";
+}
+
+function normalizeInternalHtmlPath(value) {
+  const rawValue = String(value ?? "").trim().replace(/\\/g, "/");
+
+  if (!rawValue || /^https?:\/\//i.test(rawValue)) {
+    return "";
+  }
+
+  const path = rawValue.replace(/^\.?\//, "");
+  const fileName = path.startsWith("html/") ? path.slice("html/".length) : path;
+
+  if (!/^[a-zA-Z0-9._-]+\.html?$/i.test(fileName)) {
+    return "";
+  }
+
+  return `./html/${fileName}`;
 }
 
 function compareBySortOrder(a, b) {
@@ -456,7 +479,7 @@ function buildDocumentEditModalMarkup(editingDocument, categories, feedback) {
             <label class="field">
               <span>Type</span>
               <select id="modalResourceTypeSelect" name="type" class="search-input" required>
-                ${["pdf", "word", "excel", "image", "link"].map((type) => `
+                ${RESOURCE_TYPE_OPTIONS.map((type) => `
                   <option value="${type}" ${editingDocument.type === type ? "selected" : ""}>${type}</option>
                 `).join("")}
               </select>
@@ -476,13 +499,13 @@ function buildDocumentEditModalMarkup(editingDocument, categories, feedback) {
               </select>
             </label>
 
-            <label id="modalExternalUrlField" class="field ${editingDocument.type === "link" ? "" : "hidden"}">
-              <span>Lien externe</span>
-              <input name="external_url" type="url" class="search-input" placeholder="https://..." value="${editingDocument.external_url ?? ""}">
+            <label id="modalExternalUrlField" class="field ${isUrlBackedResourceType(editingDocument.type) ? "" : "hidden"}">
+              <span>Lien externe / page HTML</span>
+              <input name="external_url" type="text" class="search-input" placeholder="https://... ou ./html/page.html" value="${editingDocument.external_url ?? ""}">
             </label>
           </div>
 
-          <label id="modalFileField" class="field ${editingDocument.type === "link" ? "hidden" : ""}">
+          <label id="modalFileField" class="field ${isUrlBackedResourceType(editingDocument.type) ? "hidden" : ""}">
             <span>Fichier (laisser vide pour conserver l'existant)</span>
             <input name="file" type="file" class="search-input">
           </label>
@@ -1162,7 +1185,7 @@ export async function renderAdminView(container) {
                   <label class="field">
                     <span>Type</span>
                     <select id="resourceTypeSelect" name="type" class="search-input" required>
-                      ${["pdf", "word", "excel", "image", "link"].map((type) => `
+                      ${RESOURCE_TYPE_OPTIONS.map((type) => `
                         <option value="${type}" ${editingDocument?.type === type || (!editingDocument && type === "pdf") ? "selected" : ""}>${type}</option>
                       `).join("")}
                     </select>
@@ -1182,13 +1205,13 @@ export async function renderAdminView(container) {
                     </select>
                   </label>
 
-                  <label id="externalUrlField" class="field ${editingDocument?.type === "link" ? "" : "hidden"}">
-                    <span>Lien externe</span>
-                    <input name="external_url" type="url" class="search-input" placeholder="https://..." value="${editingDocument?.external_url ?? ""}">
+                  <label id="externalUrlField" class="field ${isUrlBackedResourceType(editingDocument?.type) ? "" : "hidden"}">
+                    <span>Lien externe / page HTML</span>
+                    <input name="external_url" type="text" class="search-input" placeholder="https://... ou ./html/page.html" value="${editingDocument?.external_url ?? ""}">
                   </label>
                 </div>
 
-                <label id="fileField" class="field ${editingDocument?.type === "link" ? "hidden" : ""}">
+                <label id="fileField" class="field ${isUrlBackedResourceType(editingDocument?.type) ? "hidden" : ""}">
                   <span>Fichier ${editingDocument ? "(laisser vide pour conserver l'existant)" : ""}</span>
                   <input name="file" type="file" class="search-input">
                 </label>
@@ -1354,17 +1377,17 @@ export async function renderAdminView(container) {
       }
 
       function syncDocumentFields(resourceTypeSelect, resourceExternalUrlField, resourceFileField, resourceExternalUrlInput, resourceFileInput, isEditMode = false) {
-        const isLinkType = resourceTypeSelect?.value === "link";
+        const isUrlBackedType = isUrlBackedResourceType(resourceTypeSelect?.value);
 
-        resourceExternalUrlField?.classList.toggle("hidden", !isLinkType);
-        resourceFileField?.classList.toggle("hidden", isLinkType);
+        resourceExternalUrlField?.classList.toggle("hidden", !isUrlBackedType);
+        resourceFileField?.classList.toggle("hidden", isUrlBackedType);
 
         if (resourceExternalUrlInput) {
-          resourceExternalUrlInput.required = isLinkType;
+          resourceExternalUrlInput.required = isUrlBackedType;
         }
 
         if (resourceFileInput) {
-          resourceFileInput.required = !isLinkType && !isEditMode;
+          resourceFileInput.required = !isUrlBackedType && !isEditMode;
         }
       }
 
@@ -1784,6 +1807,10 @@ export async function renderAdminView(container) {
         const externalUrl = String(formData.get("external_url") ?? "").trim();
         const file = formData.get("file");
         const isLinkType = type === "link";
+        const isHtmlType = type === "html";
+        const isUrlBackedType = isUrlBackedResourceType(type);
+        const normalizedHtmlPath = normalizeInternalHtmlPath(externalUrl);
+        const shouldUseInternalHtmlPath = Boolean(normalizedHtmlPath) && (isHtmlType || isLinkType);
 
         if (!title || !type || !categoryId) {
           documentFeedback = {
@@ -1794,16 +1821,27 @@ export async function renderAdminView(container) {
           return;
         }
 
-        if (isLinkType && !externalUrl) {
+        if (isUrlBackedType && !externalUrl) {
           documentFeedback = {
-            message: "Veuillez renseigner un lien externe pour le type link.",
+            message: isHtmlType
+              ? "Veuillez renseigner le nom de la page HTML interne."
+              : "Veuillez renseigner un lien externe pour le type link.",
             type: "is-warning"
           };
           render();
           return;
         }
 
-        if (!isLinkType && !editingDocument && !(file instanceof File && file.name)) {
+        if (isHtmlType && !normalizedHtmlPath) {
+          documentFeedback = {
+            message: "La page HTML doit etre un fichier .html place directement dans le dossier html, par exemple ./html/page.html.",
+            type: "is-warning"
+          };
+          render();
+          return;
+        }
+
+        if (!isUrlBackedType && !editingDocument && !(file instanceof File && file.name)) {
           documentFeedback = {
             message: "Veuillez selectionner un fichier.",
             type: "is-warning"
@@ -1826,7 +1864,7 @@ export async function renderAdminView(container) {
             description: description || null,
             type,
             category_id: categoryId,
-            external_url: isLinkType ? externalUrl : null
+            external_url: shouldUseInternalHtmlPath ? normalizedHtmlPath : isLinkType ? externalUrl : null
           };
 
           if (hasResourceSortOrder(resources)) {
@@ -1835,7 +1873,7 @@ export async function renderAdminView(container) {
               : getNextSortOrder(siblings);
           }
 
-          if (isLinkType) {
+          if (isUrlBackedType) {
             payload = {
               ...payload,
               file_path: null,
@@ -1876,11 +1914,11 @@ export async function renderAdminView(container) {
           if (editingDocument) {
             await updateResource(editingDocument.id, payload);
 
-            if (isLinkType && previousFilePath) {
+            if (isUrlBackedType && previousFilePath) {
               await deleteFileFromStorage(previousFilePath);
             }
 
-            if (!isLinkType && uploadedReplacementPath && previousFilePath && previousFilePath !== uploadedReplacementPath) {
+            if (!isUrlBackedType && uploadedReplacementPath && previousFilePath && previousFilePath !== uploadedReplacementPath) {
               await deleteFileFromStorage(previousFilePath);
             }
 

@@ -569,6 +569,7 @@ function getResourceIcon(type) {
   if (normalizedType.includes("image") || normalizedType.includes("jpg") || normalizedType.includes("png")) return "IMG";
   if (normalizedType.includes("word") || normalizedType.includes("doc")) return "DOC";
   if (normalizedType.includes("excel") || normalizedType.includes("xls")) return "XLS";
+  if (normalizedType.includes("html")) return "HTML";
   if (normalizedType.includes("link") || normalizedType.includes("url")) return "WEB";
   return "DOC";
 }
@@ -632,9 +633,11 @@ function renderDocuments(resources, favoriteIds, fallbackMessage, options = {}) 
           const hasOpenAction = openMode !== "none";
           const actionLabel = openMode === "external"
             ? "Lien externe"
-            : openMode === "signed"
-              ? "Accès sécurisé"
-              : "Lien non disponible";
+            : openMode === "internal"
+              ? "Page interne"
+              : openMode === "signed"
+                ? "Accès sécurisé"
+                : "Lien non disponible";
 
           return `
             <article class="document-card ${isFavorite ? "is-favorite" : ""}" ${sortable ? `data-resource-sort-id="${resource.id}"` : ""}>

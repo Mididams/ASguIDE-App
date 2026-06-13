@@ -94,6 +94,10 @@ export function getFriendlyAuthError(error, context = "login") {
     return "Adresse email non confirmée. Vérifiez votre boîte mail avant de vous connecter.";
   }
 
+  if (message.includes("email rate limit exceeded") || message.includes("rate limit")) {
+    return "Trop de demandes d'email ont ete envoyees. Patientez quelques minutes avant de reessayer.";
+  }
+
   if (message.includes("failed to fetch") || message.includes("network") || status === 0) {
     return "Erreur réseau. Vérifiez votre connexion et réessayez.";
   }

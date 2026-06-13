@@ -185,6 +185,10 @@ export async function createOpenDocumentUrl(resource) {
 }
 
 export function getResourceOpenMode(resource) {
+  if (getExternalUrl(resource) && String(resource?.type ?? "").trim().toLowerCase() === "html") {
+    return "internal";
+  }
+
   if (getExternalUrl(resource)) {
     return "external";
   }

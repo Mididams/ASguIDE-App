@@ -20,7 +20,7 @@ import {
   renderFavoritesViewWithOptions
 } from "./categories.js";
 import { renderCardsView } from "./cards.js";
-import { renderAdminView } from "./admin.js";
+import { renderAdminView } from "./admin.js?v=20260613-html-docs";
 import { getFavoritesCount, initFavorites } from "./favorites.js";
 import { renderGlobalSearchView } from "./global-search.js";
 
